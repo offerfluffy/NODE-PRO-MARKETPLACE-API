@@ -26,8 +26,11 @@ export class OrdersController {
   ): Promise<OrderResponseDto> {
     return this.ordersService.create({
       customerId: body.customer_id,
-      totalAmountCents: body.total_cents,
       idempotencyKey: body.idempotency_key,
+      items: body.items.map((item) => ({
+        productId: item.product_id,
+        quantity: item.quantity,
+      })),
     });
   }
 

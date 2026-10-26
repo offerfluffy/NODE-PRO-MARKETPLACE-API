@@ -16,10 +16,31 @@ export const postgresBigintIdSchema = z.string().refine(
   },
 );
 
-export const createOrderSchema = z.strictObject({
-  customer_id: postgresBigintIdSchema,
-  total_cents: z.number().int().positive().max(MAX_POSTGRES_INTEGER),
-  idempotency_key: z.string().trim().min(1),
+const createOrderItemSchema = z.strictObject({
+  product_id: postgresBigintIdSchema,
+  quantity: z.number().int().positive().max(MAX_POSTGRES_INTEGER),
 });
+
+export const createOrderSchema = z
+  .strictObject({
+    customer_id: postgresBigintIdSchema,
+    idempotency_key: z.string().trim().min(1),
+    items: z.array(createOrderItemSchema).min(1),
+  })
+  .superRefine((order, context) => {
+    const productIds = new Set<string>();
+
+    order.items.forEach((item, index) => {
+      if (productIds.has(item.product_id)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['items', index, 'product_id'],
+          message: 'Duplicate product',
+        });
+      }
+
+      productIds.add(item.product_id);
+    });
+  });
 
 export type CreateOrderDto = z.infer<typeof createOrderSchema>;

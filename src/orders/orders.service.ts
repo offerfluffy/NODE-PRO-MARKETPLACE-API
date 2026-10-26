@@ -5,16 +5,23 @@ import {
   orderResponseSchema,
   type OrderResponseDto,
 } from './dto/order-response.dto.js';
+import { CheckoutService } from './checkout.service.js';
 
 export type CreateOrderCommand = {
   customerId: string;
-  totalAmountCents: number;
   idempotencyKey: string;
+  items: Array<{
+    productId: string;
+    quantity: number;
+  }>;
 };
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly ordersRepository: OrdersRepository) {}
+  constructor(
+    private readonly ordersRepository: OrdersRepository,
+    private readonly checkoutService: CheckoutService,
+  ) {}
 
   async findById(id: string): Promise<OrderResponseDto | null> {
     const order = await this.ordersRepository.findByIdWithItems(id);
@@ -37,19 +44,18 @@ export class OrdersService {
   }
 
   async create(input: CreateOrderCommand): Promise<OrderResponseDto> {
-    const order = await this.ordersRepository.create({
-      customerId: input.customerId,
-      status: OrderStatus.PENDING,
-      totalAmountCents: input.totalAmountCents,
-      idempotencyKey: input.idempotencyKey,
-    });
+    const checkout = await this.checkoutService.checkout(input);
 
     return orderResponseSchema.parse({
-      id: order.id,
-      customer_id: input.customerId,
-      status: order.status,
-      total_cents: order.totalAmountCents,
-      items: [],
+      id: checkout.orderId,
+      customer_id: checkout.customerId,
+      status: checkout.status,
+      total_cents: checkout.totalAmountCents,
+      items: checkout.items.map((item) => ({
+        product_id: item.productId,
+        quantity: item.quantity,
+        price_cents: item.unitPriceCents,
+      })),
     });
   }
 }
