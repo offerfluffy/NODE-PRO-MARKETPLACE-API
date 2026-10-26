@@ -13,21 +13,24 @@ export class DatabaseService implements OnApplicationShutdown {
     const passwordFile = config.get('DB_PASSWORD_FILE', { infer: true });
 
     const dbUrl = new URL(connectionString);
+    const password = passwordFile
+      ? async () => {
+          const value = (await readFile(passwordFile, 'utf8')).trim();
+
+          if (!value) {
+            throw new Error('Database password file is empty');
+          }
+
+          return value;
+        }
+      : decodeURIComponent(dbUrl.password);
 
     this.pool = new Pool({
       host: dbUrl.hostname,
       port: Number(dbUrl.port || 5432),
       database: decodeURIComponent(dbUrl.pathname.slice(1)),
       user: decodeURIComponent(dbUrl.username),
-      password: async () => {
-        const password = (await readFile(passwordFile, 'utf8')).trim();
-
-        if (!password) {
-          throw new Error('Database password file is empty');
-        }
-
-        return password;
-      },
+      password,
     });
 
     this.pool.on('error', (e) => {
