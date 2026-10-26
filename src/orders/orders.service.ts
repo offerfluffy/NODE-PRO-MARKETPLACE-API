@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { OrderStatus } from '../database/entities/order.entity.js';
 import { OrdersRepository } from '../database/repositories/orders.repository.js';
 import {
   orderResponseSchema,

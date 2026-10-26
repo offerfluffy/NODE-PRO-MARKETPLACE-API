@@ -13,6 +13,7 @@ import {
   type CreateOrderDto,
 } from './dto/create-order.dto.js';
 import type { OrderResponseDto } from './dto/order-response.dto.js';
+import { toCheckoutHttpException } from './checkout-http-error.mapper.js';
 import { OrdersService } from './orders.service.js';
 
 @Controller('orders')
@@ -24,14 +25,18 @@ export class OrdersController {
     @Body(new ZodValidationPipe(createOrderSchema))
     body: CreateOrderDto,
   ): Promise<OrderResponseDto> {
-    return this.ordersService.create({
-      customerId: body.customer_id,
-      idempotencyKey: body.idempotency_key,
-      items: body.items.map((item) => ({
-        productId: item.product_id,
-        quantity: item.quantity,
-      })),
-    });
+    try {
+      return await this.ordersService.create({
+        customerId: body.customer_id,
+        idempotencyKey: body.idempotency_key,
+        items: body.items.map((item) => ({
+          productId: item.product_id,
+          quantity: item.quantity,
+        })),
+      });
+    } catch (error: unknown) {
+      throw toCheckoutHttpException(error);
+    }
   }
 
   @Get(':id')
