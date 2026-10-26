@@ -13,7 +13,7 @@ import {
   InsufficientStockError,
   InvalidCheckoutError,
   ProductUnavailableError,
-} from '../errors/checkout.errors.js';
+} from '../checkout.errors.js';
 
 type ExistingCheckoutRow = {
   order_id: string;

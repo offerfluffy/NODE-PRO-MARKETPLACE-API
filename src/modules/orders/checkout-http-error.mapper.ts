@@ -13,7 +13,7 @@ import {
   InsufficientStockError,
   InvalidCheckoutError,
   ProductUnavailableError,
-} from '../errors/checkout.errors.js';
+} from './checkout.errors.js';
 
 export function toCheckoutHttpException(error: unknown): HttpException {
   if (error instanceof InvalidCheckoutError) {
