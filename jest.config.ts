@@ -25,6 +25,9 @@ const config: Config = {
   ],
   coverageDirectory: './coverage',
   testEnvironment: 'node',
+
+  reporters: ['default'],
+  maxWorkers: 1,
 };
 
 export default config;
