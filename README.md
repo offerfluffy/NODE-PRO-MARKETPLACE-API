@@ -469,6 +469,38 @@ bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 The measured drill result and the RTO/RPO calculation are recorded in
 `RESTORE-DRILL.md`.
 
+## 12. Testing
+
+### Integration tests
+
+```bash
+npm run test:integration
+```
+
+Integration tests start `postgres:16-alpine` through Testcontainers, apply all
+TypeORM migrations, and verify the repositories against a real PostgreSQL
+database.
+
+To verify that the tests are repeatable:
+
+```bash
+npm run test:integration && npm run test:integration
+```
+
+### Test isolation
+
+A separate PostgreSQL container is created for each test suite. Before every
+repository test, the database is cleaned with:
+
+```sql
+TRUNCATE users RESTART IDENTITY CASCADE;
+```
+
+The tests use `TRUNCATE` because the checkout logic manages its own
+transactions, and an outer `BEGIN`/`ROLLBACK` could conflict with those
+transaction boundaries. `RESTART IDENTITY` resets generated IDs, while
+`CASCADE` clears the related tables.
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
