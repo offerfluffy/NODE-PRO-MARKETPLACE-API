@@ -1,35 +1,32 @@
 import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
-import { Pool } from 'pg';
+  startTestDatabase,
+  stopTestDatabase,
+  TestDatabase,
+} from './testkit/postgres';
 
 describe('PostgreSQL testcontainer', () => {
-  let container: StartedPostgreSqlContainer | undefined;
-  let pool: Pool | undefined;
+  let database: TestDatabase | undefined;
 
   beforeAll(async () => {
-    container = await new PostgreSqlContainer('postgres:16-alpine').start();
-
-    pool = new Pool({
-      connectionString: container.getConnectionUri(),
-    });
+    database = await startTestDatabase();
   });
 
   afterAll(async () => {
-    await pool?.end();
-    await container?.stop();
+    if (database) {
+      await stopTestDatabase(database);
+    }
   });
 
-  it('executes SQL against a real PostgreSQL instance', async () => {
-    if (!pool) {
-      throw new Error('PostgreSQL pool was not initialized');
+  it('runs all migrations against a real PostgreSQL instance', async () => {
+    if (!database) {
+      throw new Error('Test database was not initialized');
     }
 
-    const result = await pool.query<{ answer: number }>(
-      'SELECT 1::integer AS answer',
-    );
+    const rows: Array<{ table_name: string | null }> =
+      await database.dataSource.query(
+        `SELECT to_regclass('public.orders')::text AS table_name`,
+      );
 
-    expect(result.rows[0]).toEqual({ answer: 1 });
+    expect(rows[0].table_name).toBe('orders');
   });
 });

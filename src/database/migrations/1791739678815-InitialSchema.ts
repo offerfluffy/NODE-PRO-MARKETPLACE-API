@@ -4,18 +4,28 @@ export class InitialSchema1791739678815 implements MigrationInterface {
   name = 'InitialSchema1791739678815';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "typeorm_metadata" (
+        "type" character varying NOT NULL,
+        "database" character varying,
+        "schema" character varying,
+        "table" character varying,
+        "name" character varying,
+        "value" text
+      )
+    `);
     await queryRunner.query(
       `CREATE TABLE "inventories" ("id" bigint GENERATED ALWAYS AS IDENTITY NOT NULL, "quantity_available" integer NOT NULL DEFAULT '0', "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), "product_id" bigint NOT NULL, CONSTRAINT "REL_92fc0c77bab4a656b9619322c6" UNIQUE ("product_id"), CONSTRAINT "CHK_quantity_available" CHECK ("quantity_available" >= 0), CONSTRAINT "PK_7b1946392ffdcb50cfc6ac78c0e" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
-      `INSERT INTO "typeorm_metadata"("database", "schema", "table", "type", "name", "value") VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO "typeorm_metadata"
+        ("database", "schema", "table", "type", "name", "value")
+      VALUES (current_database(), current_schema(), $1, $2, $3, $4)`,
       [
-        'shop',
-        'public',
         'products',
         'GENERATED_COLUMN',
         'search_vector',
-        'to_tsvector(\'simple\', "name" || \' \' || "description")',
+        `to_tsvector('simple', "name" || ' ' || "description")`,
       ],
     );
     await queryRunner.query(
@@ -106,8 +116,13 @@ export class InitialSchema1791739678815 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE "order_items"`);
     await queryRunner.query(`DROP TABLE "products"`);
     await queryRunner.query(
-      `DELETE FROM "typeorm_metadata" WHERE "type" = $1 AND "name" = $2 AND "database" = $3 AND "schema" = $4 AND "table" = $5`,
-      ['GENERATED_COLUMN', 'search_vector', 'shop', 'public', 'products'],
+      `DELETE FROM "typeorm_metadata"
+      WHERE "type" = $1
+        AND "name" = $2
+        AND "database" = current_database()
+        AND "schema" = current_schema()
+        AND "table" = $3`,
+      ['GENERATED_COLUMN', 'search_vector', 'products'],
     );
     await queryRunner.query(`DROP TABLE "inventories"`);
   }
