@@ -3,8 +3,8 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { DataSource } from 'typeorm';
-import { databaseEntities } from '../../../src/database/entities/index.js';
-import { databaseMigrations } from '../../../src/database/migrations/index.js';
+import { databaseEntities } from '../../../src/modules/database/entities/index.js';
+import { databaseMigrations } from '../../../src/modules/database/migrations/index.js';
 
 export type TestDatabase = {
   container: StartedPostgreSqlContainer;

@@ -1,9 +1,9 @@
-import { Order } from '../../src/database/entities/order.entity.js';
-import { OrderItem } from '../../src/database/entities/orderItem.entity.js';
-import { Product } from '../../src/database/entities/product.entity.js';
-import { UserRole } from '../../src/database/entities/user.entity.js';
-import { OrdersRepository } from '../../src/database/repositories/orders.repository.js';
-import { UsersRepository } from '../../src/database/repositories/users.repository.js';
+import { Order } from '../../src/modules/database/entities/order.entity.js';
+import { OrderItem } from '../../src/modules/database/entities/orderItem.entity.js';
+import { Product } from '../../src/modules/database/entities/product.entity.js';
+import { UserRole } from '../../src/modules/database/entities/user.entity.js';
+import { OrdersRepository } from '../../src/modules/database/repositories/orders.repository.js';
+import { UsersRepository } from '../../src/modules/database/repositories/users.repository.js';
 import { anOrder, anOrderItem, aProduct, aUser } from './testkit/builders.js';
 import {
   startTestDatabase,

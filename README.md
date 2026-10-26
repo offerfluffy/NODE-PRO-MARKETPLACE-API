@@ -202,7 +202,7 @@ docker compose up -d
 ## 8. TypeORM data layer
 
 The PostgreSQL schema is represented by TypeORM entities in
-`src/database/entities`. Schema changes are applied through migrations;
+`src/modules/database/entities`. Schema changes are applied through migrations;
 `synchronize` is explicitly disabled so application startup cannot modify the
 database schema implicitly.
 

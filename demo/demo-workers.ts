@@ -1,4 +1,4 @@
-import dataSource from '../src/database/data-source.js';
+import dataSource from '../src/modules/database/data-source.js';
 
 type ClaimedJobRow = {
   id: string;

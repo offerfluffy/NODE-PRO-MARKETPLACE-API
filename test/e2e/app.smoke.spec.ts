@@ -4,14 +4,14 @@ import {
   stopTestApplication,
   type TestApplication,
 } from './testkit/app.js';
-import { seedDatabase } from '../../src/database/seed/seed-database.js';
+import { seedDatabase } from '../../src/modules/database/seed/seed-database.js';
 import {
   Order,
   OrderStatus,
-} from '../../src/database/entities/order.entity.js';
-import { Inventory } from '../../src/database/entities/inventory.entity.js';
-import { Product } from '../../src/database/entities/product.entity.js';
-import { User } from '../../src/database/entities/user.entity.js';
+} from '../../src/modules/database/entities/order.entity.js';
+import { Inventory } from '../../src/modules/database/entities/inventory.entity.js';
+import { Product } from '../../src/modules/database/entities/product.entity.js';
+import { User } from '../../src/modules/database/entities/user.entity.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;

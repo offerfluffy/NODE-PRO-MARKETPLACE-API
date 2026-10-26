@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Env } from './config/env.schema.js';
-import { DatabaseService } from './database/database.service.js';
+import { DatabaseService } from './modules/database/database.service.js';
 
 @Controller()
 export class AppController {

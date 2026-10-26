@@ -6,7 +6,7 @@ import {
   Param,
   Post,
 } from '@nestjs/common';
-import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import {
   createOrderSchema,
   postgresBigintIdSchema,

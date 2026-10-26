@@ -1,13 +1,13 @@
 import type { DeepPartial } from 'typeorm';
-import { OrderStatus } from '../../../src/database/entities/order.entity.js';
-import type { OrderItem } from '../../../src/database/entities/orderItem.entity.js';
+import { OrderStatus } from '../../../src/modules/database/entities/order.entity.js';
+import type { OrderItem } from '../../../src/modules/database/entities/orderItem.entity.js';
 import {
   ProductStatus,
   type Product,
-} from '../../../src/database/entities/product.entity.js';
-import { UserRole } from '../../../src/database/entities/user.entity.js';
-import type { CreateOrderInput } from '../../../src/database/repositories/orders.repository.js';
-import type { CreateUserInput } from '../../../src/database/repositories/users.repository.js';
+} from '../../../src/modules/database/entities/product.entity.js';
+import { UserRole } from '../../../src/modules/database/entities/user.entity.js';
+import type { CreateOrderInput } from '../../../src/modules/database/repositories/orders.repository.js';
+import type { CreateUserInput } from '../../../src/modules/database/repositories/users.repository.js';
 
 let userSequence = 0;
 

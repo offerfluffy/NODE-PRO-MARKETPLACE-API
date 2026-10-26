@@ -1,7 +1,7 @@
 import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { readFile } from 'node:fs/promises';
-import type { Env } from '../config/env.schema.js';
+import type { Env } from '../../config/env.schema.js';
 import { databaseEntities } from './entities/index.js';
 
 export async function createTypeOrmOptions(
