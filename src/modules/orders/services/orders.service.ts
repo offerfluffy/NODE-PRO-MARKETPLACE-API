@@ -4,7 +4,7 @@ import {
   orderResponseSchema,
   type OrderResponseDto,
 } from '../dto/order-response.dto.js';
-import { CheckoutService } from './checkout.service.js';
+import { CheckoutService } from './checkout/index.js';
 
 export type CreateOrderCommand = {
   customerId: string;
