@@ -1,46 +1,37 @@
 import { z } from 'zod';
+import {
+  checkoutItemsSchema,
+  postgresBigintIdSchema,
+} from '../services/checkout/checkout-item.schema.js';
 
-const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n;
-const MAX_POSTGRES_INTEGER = 2_147_483_647;
+const createOrderRequestSchema = z
+  .strictObject({
+    customer_id: z.unknown(),
+    idempotency_key: z.unknown(),
+    items: z.array(
+      z.strictObject({
+        product_id: z.unknown(),
+        quantity: z.unknown(),
+      }),
+    ),
+  })
+  .transform((order) => ({
+    customerId: order.customer_id,
+    idempotencyKey: order.idempotency_key,
+    items: order.items.map((item) => ({
+      productId: item.product_id,
+      quantity: item.quantity,
+    })),
+  }));
 
-export const postgresBigintIdSchema = z.string().refine(
-  (value) => {
-    if (!/^[1-9]\d*$/.test(value)) {
-      return false;
-    }
-
-    return BigInt(value) <= MAX_POSTGRES_BIGINT;
-  },
-  {
-    message: 'Must be a positive PostgreSQL bigint',
-  },
+export const createOrderSchema = createOrderRequestSchema.pipe(
+  z.strictObject({
+    customerId: postgresBigintIdSchema,
+    idempotencyKey: z.string().trim().min(1),
+    items: checkoutItemsSchema,
+  }),
 );
 
-const createOrderItemSchema = z.strictObject({
-  product_id: postgresBigintIdSchema,
-  quantity: z.number().int().positive().max(MAX_POSTGRES_INTEGER),
-});
-
-export const createOrderSchema = z
-  .strictObject({
-    customer_id: postgresBigintIdSchema,
-    idempotency_key: z.string().trim().min(1),
-    items: z.array(createOrderItemSchema).min(1),
-  })
-  .superRefine((order, context) => {
-    const productIds = new Set<string>();
-
-    order.items.forEach((item, index) => {
-      if (productIds.has(item.product_id)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['items', index, 'product_id'],
-          message: 'Duplicate product',
-        });
-      }
-
-      productIds.add(item.product_id);
-    });
-  });
+export { postgresBigintIdSchema };
 
 export type CreateOrderDto = z.infer<typeof createOrderSchema>;

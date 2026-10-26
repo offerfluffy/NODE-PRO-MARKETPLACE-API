@@ -1,9 +1,8 @@
 import type { OrderStatus } from '../../../database/entities/order.entity.js';
+import type { z } from 'zod';
+import type { checkoutItemInputSchema } from './checkout-item.schema.js';
 
-export type CheckoutItemInput = {
-  productId: string;
-  quantity: number;
-};
+export type CheckoutItemInput = z.infer<typeof checkoutItemInputSchema>;
 
 export type CheckoutInput = {
   customerId: string;

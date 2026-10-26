@@ -26,14 +26,7 @@ export class OrdersController {
     body: CreateOrderDto,
   ): Promise<OrderResponseDto> {
     try {
-      return await this.ordersService.create({
-        customerId: body.customer_id,
-        idempotencyKey: body.idempotency_key,
-        items: body.items.map((item) => ({
-          productId: item.product_id,
-          quantity: item.quantity,
-        })),
-      });
+      return await this.ordersService.create(body);
     } catch (error: unknown) {
       throw toCheckoutHttpException(error);
     }

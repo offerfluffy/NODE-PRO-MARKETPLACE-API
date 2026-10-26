@@ -5,8 +5,10 @@ import {
 } from '../../../database/entities/product.entity.js';
 import {
   CheckoutTotalOutOfRangeError,
+  InvalidCheckoutError,
   ProductUnavailableError,
 } from '../../checkout.errors.js';
+import { checkoutItemsSchema } from './checkout-item.schema.js';
 import type {
   CheckoutItemInput,
   PricedCheckout,
@@ -17,7 +19,18 @@ export async function priceCheckoutItems(
   manager: EntityManager,
   items: CheckoutItemInput[],
 ): Promise<PricedCheckout> {
-  const productIds = items.map((item) => item.productId);
+  const validationResult = checkoutItemsSchema.safeParse(items);
+
+  if (!validationResult.success) {
+    const firstIssue = validationResult.error.issues[0];
+
+    throw new InvalidCheckoutError(
+      firstIssue?.message ?? 'Checkout items are invalid',
+    );
+  }
+
+  const validatedItems = validationResult.data;
+  const productIds = validatedItems.map((item) => item.productId);
   const products = await manager.getRepository(Product).find({
     select: {
       id: true,
@@ -29,7 +42,7 @@ export async function priceCheckoutItems(
     },
   });
 
-  if (products.length !== items.length) {
+  if (products.length !== validatedItems.length) {
     throw new ProductUnavailableError(
       'One or more products were not found or unavailable',
     );
@@ -39,7 +52,7 @@ export async function priceCheckoutItems(
     products.map((product) => [product.id, product]),
   );
 
-  const pricedItems = items
+  const pricedItems = validatedItems
     .map((item): PricedCheckoutItem => {
       const product = productsById.get(item.productId);
 
