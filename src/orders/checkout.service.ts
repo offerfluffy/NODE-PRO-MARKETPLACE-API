@@ -2,6 +2,15 @@ import { Injectable } from '@nestjs/common';
 import { DataSource, In, QueryFailedError, type EntityManager } from 'typeorm';
 import { Product, ProductStatus } from '../database/entities/product.entity.js';
 import { OrderStatus } from '../database/entities/order.entity.js';
+import {
+  CheckoutTotalOutOfRangeError,
+  CustomerUnavailableError,
+  IdempotencyConflictError,
+  InsufficientFundsError,
+  InsufficientStockError,
+  InvalidCheckoutError,
+  ProductUnavailableError,
+} from './checkout.errors.js';
 
 type ExistingCheckoutRow = {
   order_id: string;
@@ -34,6 +43,10 @@ export type CheckoutResult = {
     quantity: number;
     unitPriceCents: number;
   }>;
+};
+
+type CustomerStateRow = {
+  role: string;
 };
 
 type PricedCheckoutItem = CheckoutItemInput & {
@@ -85,7 +98,7 @@ export class CheckoutService {
 
         if (existingCheckout) {
           if (!hasSameItems(existingCheckout, items)) {
-            throw new Error(
+            throw new IdempotencyConflictError(
               'Idempotency key was already used with different items',
             );
           }
@@ -112,7 +125,9 @@ export class CheckoutService {
           );
 
           if (!inventoryRows[0]) {
-            throw new Error(`Insufficient stock for product ${item.productId}`);
+            throw new InsufficientStockError(
+              `Insufficient stock for product ${item.productId}`,
+            );
           }
         }
 
@@ -134,7 +149,24 @@ export class CheckoutService {
         const balance = balanceRows[0];
 
         if (!balance) {
-          throw new Error('Customer not found or insufficient funds');
+          const customerRows = await manager.query<CustomerStateRow[]>(
+            `
+              SELECT role
+              FROM users
+              WHERE id = $1
+            `,
+            [customerId],
+          );
+
+          const customer = customerRows[0];
+
+          if (!customer || customer.role !== 'customer') {
+            throw new CustomerUnavailableError(
+              `Customer ${customerId} was not found`,
+            );
+          }
+
+          throw new InsufficientFundsError('Customer has insufficient funds');
         }
 
         const orderRows = await manager.query<InsertedOrderRow[]>(
@@ -215,7 +247,7 @@ export class CheckoutService {
       }
 
       if (!hasSameItems(existingCheckout, items)) {
-        throw new Error(
+        throw new IdempotencyConflictError(
           'Idempotency key was already used with different items',
         );
       }
@@ -230,18 +262,18 @@ async function priceCheckoutItems(
   items: CheckoutItemInput[],
 ): Promise<PricedCheckout> {
   if (items.length === 0) {
-    throw new Error('Order must contain at least one item');
+    throw new InvalidCheckoutError('Order must contain at least one item');
   }
 
   const productIds = new Set<string>();
 
   for (const item of items) {
     if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
-      throw new Error('Quantity must be a positive integer');
+      throw new InvalidCheckoutError('Quantity must be a positive integer');
     }
 
     if (productIds.has(item.productId)) {
-      throw new Error(`Duplicate product: ${item.productId}`);
+      throw new InvalidCheckoutError(`Duplicate product: ${item.productId}`);
     }
 
     productIds.add(item.productId);
@@ -259,7 +291,9 @@ async function priceCheckoutItems(
   });
 
   if (products.length !== items.length) {
-    throw new Error('One or more products were not found or unavailable');
+    throw new ProductUnavailableError(
+      'One or more products were not found or unavailable',
+    );
   }
 
   const productsById = new Map(
@@ -271,7 +305,9 @@ async function priceCheckoutItems(
       const product = productsById.get(item.productId);
 
       if (!product) {
-        throw new Error(`Product ${item.productId} is unavailable`);
+        throw new ProductUnavailableError(
+          `Product ${item.productId} is unavailable`,
+        );
       }
 
       return {
@@ -288,7 +324,9 @@ async function priceCheckoutItems(
   );
 
   if (totalAmountCents <= 0n || totalAmountCents > 2_147_483_647n) {
-    throw new Error('Order total is outside the supported range');
+    throw new CheckoutTotalOutOfRangeError(
+      'Order total is outside the supported range',
+    );
   }
 
   return {
