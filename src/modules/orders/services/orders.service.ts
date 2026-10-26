@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { OrdersRepository } from '../database/repositories/orders.repository.js';
+import { OrdersRepository } from '../../database/repositories/orders.repository.js';
 import {
   orderResponseSchema,
   type OrderResponseDto,
-} from './dto/order-response.dto.js';
+} from '../dto/order-response.dto.js';
 import { CheckoutService } from './checkout.service.js';
 
 export type CreateOrderCommand = {

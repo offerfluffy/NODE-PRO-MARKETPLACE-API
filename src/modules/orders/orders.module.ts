@@ -2,9 +2,9 @@ import { Module } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { DatabaseModule } from '../database/database.module.js';
 import { OrdersRepository } from '../database/repositories/orders.repository.js';
-import { OrdersService } from './orders.service.js';
+import { OrdersService } from './services/orders.service.js';
 import { OrdersController } from './orders.controller.js';
-import { CheckoutService } from './checkout.service.js';
+import { CheckoutService } from './services/checkout.service.js';
 
 @Module({
   imports: [DatabaseModule],

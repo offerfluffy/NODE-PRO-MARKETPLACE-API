@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, In, QueryFailedError, type EntityManager } from 'typeorm';
-import { Product, ProductStatus } from '../database/entities/product.entity.js';
-import { OrderStatus } from '../database/entities/order.entity.js';
+import {
+  Product,
+  ProductStatus,
+} from '../../database/entities/product.entity.js';
+import { OrderStatus } from '../../database/entities/order.entity.js';
 import {
   CheckoutTotalOutOfRangeError,
   CustomerUnavailableError,
@@ -10,7 +13,7 @@ import {
   InsufficientStockError,
   InvalidCheckoutError,
   ProductUnavailableError,
-} from './checkout.errors.js';
+} from '../errors/checkout.errors.js';
 
 type ExistingCheckoutRow = {
   order_id: string;

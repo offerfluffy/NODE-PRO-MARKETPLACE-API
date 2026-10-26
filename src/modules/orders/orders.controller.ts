@@ -13,8 +13,8 @@ import {
   type CreateOrderDto,
 } from './dto/create-order.dto.js';
 import type { OrderResponseDto } from './dto/order-response.dto.js';
-import { toCheckoutHttpException } from './checkout-http-error.mapper.js';
-import { OrdersService } from './orders.service.js';
+import { toCheckoutHttpException } from './mappers/checkout-http-error.mapper.js';
+import { OrdersService } from './services/orders.service.js';
 
 @Controller('orders')
 export class OrdersController {
