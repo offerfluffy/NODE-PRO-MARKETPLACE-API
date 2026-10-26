@@ -1,9 +1,6 @@
 import { EntityManager } from 'typeorm';
-import dataSource from '../data-source.js';
-import {
-  RetryResult,
-  withTransactionRetry,
-} from '../utils/transaction-retry.js';
+import dataSource from '../src/database/data-source.js';
+import { RetryResult, withTransactionRetry } from './transaction-retry.js';
 
 const CUSTOMER_EMAIL = 'customer.three@example.com';
 const INITIAL_BALANCE_CENTS = 10_000;

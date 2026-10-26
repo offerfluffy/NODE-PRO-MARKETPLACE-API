@@ -1,7 +1,10 @@
-import { checkout } from '../utils/checkout.js';
-import dataSource from '../data-source.js';
-import { Product, ProductStatus } from '../entities/product.entity.js';
-import { User } from '../entities/user.entity.js';
+import { checkout } from './checkout.js';
+import dataSource from '../src/database/data-source.js';
+import {
+  Product,
+  ProductStatus,
+} from '../src/database/entities/product.entity.js';
+import { User } from '../src/database/entities/user.entity.js';
 
 type AttemptResult =
   { success: true; orderId: string } | { success: false; error: string };

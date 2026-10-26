@@ -131,7 +131,7 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
    ```
 
    Початковий пароль має збігатися з паролем `app_user` у
-   `src/database/raw-sql/init.sql`.
+   `docker/postgres/init.sql`.
    `secrets/` і `.env` ігноруються Git та виключені з Docker-образу;
    `.env.example` залишається публічним контрактом конфігурації. Основний
    локальний шлях отримує змінні середовища `dev` з Infisical.
@@ -191,7 +191,7 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
    `/db` має повернути HTTP 200, а `uptimeSec` — бути більшим за попереднє значення: процес API продовжує працювати без рестарту.
 
 Після видалення даних PostgreSQL (зокрема через `docker compose down -v`) нова
-БД отримує початковий пароль з `src/database/raw-sql/init.sql`, а локальний файл
+БД отримує початковий пароль з `docker/postgres/init.sql`, а локальний файл
 може містити ротований. Перед запуском із новою БД поверни початкове значення:
 
 ```bash
@@ -199,69 +199,7 @@ printf '%s' 'app-v1-password' > secrets/db_password
 docker compose up -d
 ```
 
-## 8. PostgreSQL optimization homework
-
-Підняти PostgreSQL зі свіжого клону:
-
-```bash
-docker compose up -d --wait
-```
-
-Підключитися до PostgreSQL:
-
-```bash
-docker compose exec db psql -U admin -d shop
-```
-
-- Main table: `orders` (100,000 rows)
-- Search table: `products` (100,000 rows)
-
-### Повний цикл перевірки
-
-Очистити локальний volume, а потім виконати наведену вище команду підняття PostgreSQL:
-
-```bash
-docker compose down -v
-```
-
-Застосувати схему та згенерувати дані:
-
-```bash
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < src/database/raw-sql/schema.sql
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < src/database/raw-sql/seed.sql
-```
-
-Зняти плани до індексів:
-
-```bash
-for n in 1 2 3 4; do
-  docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat src/database/raw-sql/queries/q${n}.sql)"
-done
-```
-
-Створити індекси та оновити статистику планера:
-
-```bash
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < src/database/raw-sql/indexes.sql
-docker compose exec -T db psql -U admin -d shop -c "ANALYZE;"
-```
-
-Зняти плани після індексів:
-
-```bash
-for n in 1 2 3; do
-  docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat src/database/raw-sql/queries/q${n}.sql)"
-done
-
-for run in 1 2 3; do
-  docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat src/database/raw-sql/queries/q4.sql)"
-done
-```
-
-## 9. TypeORM data layer
+## 8. TypeORM data layer
 
 The PostgreSQL schema is represented by TypeORM entities in
 `src/database/entities`. Schema changes are applied through migrations;
@@ -335,7 +273,7 @@ follows its product, and order items follow their order. `RESTRICT` protects
 business history: users referenced by products or orders cannot be removed, and
 products referenced by order items cannot be removed.
 
-## 10. Конкурентність
+## 9. Конкурентність
 
 Checkout виконує декремент залишку, списання балансу, створення замовлення,
 позиції замовлення та задачі на post-processing в одній транзакції. Якщо
@@ -407,7 +345,7 @@ npm run demo:workers
 npm run demo:retry
 ```
 
-## 11. Data layer ops
+## 10. Data layer ops
 
 ### PgBouncer transaction mode
 
@@ -469,7 +407,7 @@ bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 The measured drill result and the RTO/RPO calculation are recorded in
 `RESTORE-DRILL.md`.
 
-## 12. Testing
+## 11. Testing
 
 ### Integration tests
 
