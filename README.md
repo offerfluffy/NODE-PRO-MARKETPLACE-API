@@ -71,27 +71,12 @@ I am not supporting multiple warehouses per product in the first version. Each p
 
 Обрано варіант А — consumer-driven contract testing with Pact.
 
-Тест `consumer.pact.test.mjs` перевіряє взаємодію `GET /orders/1` між
-консюмером `marketplace-web` і провайдером `marketplace-api`. Після успішного
-запуску Pact створює контракт у теці `pacts/`.
-
-Встановлення залежностей:
-
-```bash
-npm install
-```
-
-Запуск контрактного тесту:
-
-```bash
-npm run contract:test
-```
-
-Перевірка створеного Pact-контракту:
-
-```bash
-ls pacts/*.json
-```
+Consumer-тест описує взаємодію `GET /orders/1` між `marketplace-web` і
+`marketplace-api` та створює виконуваний контракт у `pacts/`. Provider
+verification запускає справжній Nest-застосунок із PostgreSQL Testcontainer,
+готує provider state у базі та перевіряє відповідь застосунку проти контракту.
+Pact Broker зберігає версії контрактів і результати їх перевірки; команди та
+повний локальний Broker workflow наведені в розділі [Testing](#11-testing).
 
 ## 6. OpenAPI validation
 
@@ -409,6 +394,19 @@ The measured drill result and the RTO/RPO calculation are recorded in
 
 ## 11. Testing
 
+Docker має бути запущений, оскільки integration, E2E та provider verification
+створюють `postgres:16-alpine` через Testcontainers.
+
+Основні команди:
+
+```bash
+npx tsc --noEmit
+npm run test:integration
+npm run test:e2e
+npm run test:contract
+npm run verify:provider
+```
+
 ### Integration tests
 
 ```bash
@@ -438,6 +436,126 @@ The tests use `TRUNCATE` because the checkout logic manages its own
 transactions, and an outer `BEGIN`/`ROLLBACK` could conflict with those
 transaction boundaries. `RESTART IDENTITY` resets generated IDs, while
 `CASCADE` clears the related tables.
+
+### E2E tests
+
+```bash
+npm run test:e2e
+```
+
+E2E tests build the full Nest application with `AppModule` and no replaced
+providers. The application receives its database URL from a PostgreSQL
+Testcontainer. The suite covers a missing-order `404`, reading a seeded order,
+and the complete multi-item checkout flow: create, read back, inventory and
+balance changes, post-processing job creation, and idempotent retry.
+
+### Consumer contract and local provider verification
+
+Generate the Pact contract as the imaginary frontend consumer:
+
+```bash
+npm run test:contract
+ls pacts/*.json
+grep providerStates pacts/*.json
+```
+
+Verify the generated local Pact against the real Nest application:
+
+```bash
+npm run verify:provider
+```
+
+The consumer test talks to Pact's mock server. Provider verification is the
+opposite side: it starts the real application, uses the provider state
+`order with id 1 exists` to seed its Testcontainer database, and replays the
+contract request against that application.
+
+### Pact Broker and `can-i-deploy`
+
+Docker Compose runs two contract-specific services in addition to the
+Marketplace data layer:
+
+- `pact-broker` is the HTTP registry for contracts, versions, verification
+  results and deployment compatibility checks. It is available locally at
+  `http://127.0.0.1:21130`.
+- `broker-db` is the Broker's private PostgreSQL database. It contains contract
+  metadata, not marketplace users, products or orders.
+
+Start the Broker, generate the contract and publish consumer version `1.0.0`:
+
+```bash
+docker compose up -d --wait
+npm run test:contract
+
+curl --fail-with-body -i -X PUT \
+  'http://127.0.0.1:21130/pacts/provider/marketplace-api/consumer/marketplace-web/version/1.0.0' \
+  -H 'Content-Type: application/json' \
+  --data-binary @pacts/marketplace-web-marketplace-api.json
+```
+
+The normal local path obtains `PACT_BROKER_URL` and, for an authenticated remote
+Broker, `PACT_BROKER_TOKEN` from Infisical:
+
+```bash
+bash scripts/with-secrets.sh dev npm run verify:provider
+```
+
+The grader does not have access to the project's secret store, so the equivalent
+emergency path supplies the local Broker URL directly. `PROVIDER_VERSION` is an
+immutable application version, not a secret:
+
+```bash
+PACT_BROKER_URL=http://127.0.0.1:21130 \
+PROVIDER_VERSION=1.0.0 \
+PROVIDER_BRANCH=main \
+npm run verify:provider
+```
+
+With `PACT_BROKER_URL` present, `verify:provider` downloads the contract from the
+Broker and publishes its successful verification result. Before any provider
+version is tagged as production, the deployment query is deliberately blocked:
+
+```bash
+curl --silent \
+  'http://127.0.0.1:21130/can-i-deploy?pacticipant=marketplace-web&version=1.0.0&to=prod'
+```
+
+```json
+{
+  "deployable": null,
+  "reason": "There is no verified pact between version 1.0.0 of marketplace-web and the latest version of marketplace-api with tag prod (no such version exists)",
+  "success": 0,
+  "failed": 0,
+  "unknown": 1
+}
+```
+
+Tag provider version `1.0.0` as the version currently representing production:
+
+```bash
+curl --fail-with-body -i -X PUT \
+  'http://127.0.0.1:21130/pacticipants/marketplace-api/versions/1.0.0/tags/prod' \
+  -H 'Content-Type: application/json'
+```
+
+The tag does not deploy code. It gives `to=prod` a concrete provider version to
+compare with the consumer contract. Repeating the same `can-i-deploy` query now
+returns:
+
+```json
+{
+  "deployable": true,
+  "reason": "All required verification results are published and successful",
+  "success": 1,
+  "failed": 0,
+  "unknown": 0
+}
+```
+
+This `null` to `true` transition proves that the gate depends on an actual
+published verification result and production provider version. In CI,
+`PACT_BROKER_URL` and `PACT_BROKER_TOKEN` come from GitHub secrets,
+`PROVIDER_VERSION` is the commit SHA, and `PROVIDER_BRANCH` is the Git branch.
 
 ## Grading
 
