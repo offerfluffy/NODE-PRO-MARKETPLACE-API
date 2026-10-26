@@ -5,9 +5,11 @@ import {
 import { DataSource } from 'typeorm';
 import { resolve } from 'node:path';
 
-const MIGRATIONS_GLOB = resolve(
+const MIGRATIONS_GLOB = resolve(process.cwd(), 'src/database/migrations/*.ts');
+
+const ENTITIES_GLOB = resolve(
   process.cwd(),
-  'src/database/migrations/*.ts',
+  'src/database/entities/*.entity.ts',
 );
 
 export type TestDatabase = {
@@ -16,13 +18,12 @@ export type TestDatabase = {
 };
 
 export async function startTestDatabase(): Promise<TestDatabase> {
-  const container = await new PostgreSqlContainer(
-    'postgres:16-alpine',
-  ).start();
+  const container = await new PostgreSqlContainer('postgres:16-alpine').start();
 
   const dataSource = new DataSource({
     type: 'postgres',
     url: container.getConnectionUri(),
+    entities: [ENTITIES_GLOB],
     migrations: [MIGRATIONS_GLOB],
     synchronize: false,
     logging: false,
@@ -37,15 +38,13 @@ export async function startTestDatabase(): Promise<TestDatabase> {
       dataSource,
     };
   } catch (error) {
-    await stopTestDatabase({container, dataSource})
+    await stopTestDatabase({ container, dataSource });
 
     throw error;
   }
 }
 
-export async function stopTestDatabase(
-  database: TestDatabase,
-): Promise<void> {
+export async function stopTestDatabase(database: TestDatabase): Promise<void> {
   if (database.dataSource.isInitialized) {
     await database.dataSource.destroy();
   }
