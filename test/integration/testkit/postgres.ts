@@ -3,14 +3,8 @@ import {
   StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { DataSource } from 'typeorm';
-import { resolve } from 'node:path';
-
-const MIGRATIONS_GLOB = resolve(process.cwd(), 'src/database/migrations/*.ts');
-
-const ENTITIES_GLOB = resolve(
-  process.cwd(),
-  'src/database/entities/*.entity.ts',
-);
+import { databaseEntities } from '../../../src/database/entities/index.js';
+import { databaseMigrations } from '../../../src/database/migrations/index.js';
 
 export type TestDatabase = {
   container: StartedPostgreSqlContainer;
@@ -23,8 +17,8 @@ export async function startTestDatabase(): Promise<TestDatabase> {
   const dataSource = new DataSource({
     type: 'postgres',
     url: container.getConnectionUri(),
-    entities: [ENTITIES_GLOB],
-    migrations: [MIGRATIONS_GLOB],
+    entities: databaseEntities,
+    migrations: databaseMigrations,
     synchronize: false,
     logging: false,
   });

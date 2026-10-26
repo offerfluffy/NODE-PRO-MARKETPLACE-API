@@ -1,12 +1,8 @@
 import 'reflect-metadata';
 import 'dotenv/config';
 import { DataSource } from 'typeorm';
-import { User } from './entities/user.entity.js';
-import { Product } from './entities/product.entity.js';
-import { Inventory } from './entities/inventory.entity.js';
-import { Order } from './entities/order.entity.js';
-import { OrderItem } from './entities/orderItem.entity.js';
-import { Job } from './entities/job.entity.js';
+import { databaseEntities } from './entities/index.js';
+import { databaseMigrations } from './migrations/index.js';
 
 const port = Number(requiredEnv('DB_PORT'));
 
@@ -23,9 +19,8 @@ const dataSource = new DataSource({
   password: requiredEnv('DB_PASSWORD'),
   database: requiredEnv('DB_NAME'),
 
-  entities: [User, Product, Inventory, Order, OrderItem, Job],
-
-  migrations: [`${import.meta.dirname}/migrations/*.js`],
+  entities: databaseEntities,
+  migrations: databaseMigrations,
 
   synchronize: false,
 });
