@@ -5,7 +5,8 @@ import {
   NotFoundException,
   Param,
 } from '@nestjs/common';
-import { OrdersService, type OrderResponse } from './orders.service.js';
+import { OrderResponseDto } from './dto/order-response.dto.js';
+import { OrdersService } from './orders.service.js';
 
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n;
 
@@ -14,7 +15,7 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get(':id')
-  async findById(@Param('id') id: string): Promise<OrderResponse> {
+  async findById(@Param('id') id: string): Promise<OrderResponseDto> {
     if (!isValidOrderId(id)) {
       throw new BadRequestException(
         'Order id must be a positive PostgreSQL bigint',
