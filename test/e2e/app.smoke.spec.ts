@@ -23,4 +23,15 @@ describe('Application E2E', () => {
 
     expect(response.body.current_user).toBe(context.container.getUsername());
   });
+
+  it('returns 404 when an order does not exist', async () => {
+    const response = await request(context.app.getHttpServer())
+      .get('/orders/999999')
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      statusCode: 404,
+      message: 'Order 999999 was not found',
+    });
+  });
 });

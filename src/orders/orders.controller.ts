@@ -5,10 +5,7 @@ import {
   NotFoundException,
   Param,
 } from '@nestjs/common';
-import {
-  OrdersService,
-  type OrderResponse,
-} from './orders.service.js';
+import { OrdersService, type OrderResponse } from './orders.service.js';
 
 const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n;
 
