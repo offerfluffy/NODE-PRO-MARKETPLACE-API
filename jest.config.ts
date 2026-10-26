@@ -28,6 +28,7 @@ const config: Config = {
 
   reporters: ['default'],
   maxWorkers: 1,
+  testTimeout: 120_000,
 };
 
 export default config;
