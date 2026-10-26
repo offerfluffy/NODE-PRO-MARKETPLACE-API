@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, In, type EntityManager } from 'typeorm';
+import { DataSource, In, QueryFailedError, type EntityManager } from 'typeorm';
 import { Product, ProductStatus } from '../database/entities/product.entity.js';
 import { OrderStatus } from '../database/entities/order.entity.js';
 
@@ -59,6 +59,13 @@ type InsertedOrderRow = {
 
 type UpdateReturningResult<Row> = [rows: Row[], affected: number];
 
+type CheckoutQueryExecutor = Pick<EntityManager, 'query'>;
+
+type PostgresDriverError = {
+  code?: string;
+  constraint?: string;
+};
+
 @Injectable()
 export class CheckoutService {
   constructor(private readonly dataSource: DataSource) {}
@@ -68,31 +75,32 @@ export class CheckoutService {
     items,
     idempotencyKey,
   }: CheckoutInput): Promise<CheckoutResult> {
-    return this.dataSource.transaction(async (manager) => {
-      const existingCheckout = await findExistingCheckout(
-        manager,
-        customerId,
-        idempotencyKey,
-      );
+    try {
+      return await this.dataSource.transaction(async (manager) => {
+        const existingCheckout = await findExistingCheckout(
+          manager,
+          customerId,
+          idempotencyKey,
+        );
 
-      if (existingCheckout) {
-        if (!hasSameItems(existingCheckout, items)) {
-          throw new Error(
-            'Idempotency key was already used with different items',
-          );
+        if (existingCheckout) {
+          if (!hasSameItems(existingCheckout, items)) {
+            throw new Error(
+              'Idempotency key was already used with different items',
+            );
+          }
+
+          return existingCheckout;
         }
 
-        return existingCheckout;
-      }
+        const pricedCheckout = await priceCheckoutItems(manager, items);
+        const { totalAmountCents } = pricedCheckout;
 
-      const pricedCheckout = await priceCheckoutItems(manager, items);
-      const { totalAmountCents } = pricedCheckout;
-
-      for (const item of pricedCheckout.items) {
-        const [inventoryRows] = await manager.query<
-          UpdateReturningResult<InventoryUpdateRow>
-        >(
-          `
+        for (const item of pricedCheckout.items) {
+          const [inventoryRows] = await manager.query<
+            UpdateReturningResult<InventoryUpdateRow>
+          >(
+            `
             UPDATE inventories
             SET quantity_available = quantity_available - $2,
                 updated_at = now()
@@ -100,18 +108,18 @@ export class CheckoutService {
               AND quantity_available >= $2
             RETURNING quantity_available
           `,
-          [item.productId, item.quantity],
-        );
+            [item.productId, item.quantity],
+          );
 
-        if (!inventoryRows[0]) {
-          throw new Error(`Insufficient stock for product ${item.productId}`);
+          if (!inventoryRows[0]) {
+            throw new Error(`Insufficient stock for product ${item.productId}`);
+          }
         }
-      }
 
-      const [balanceRows] = await manager.query<
-        UpdateReturningResult<BalanceUpdateRow>
-      >(
-        `
+        const [balanceRows] = await manager.query<
+          UpdateReturningResult<BalanceUpdateRow>
+        >(
+          `
         UPDATE users
         SET balance_cents = balance_cents - $2,
             updated_at = now()
@@ -120,17 +128,17 @@ export class CheckoutService {
             AND balance_cents >= $2
         RETURNING balance_cents
       `,
-        [customerId, totalAmountCents],
-      );
+          [customerId, totalAmountCents],
+        );
 
-      const balance = balanceRows[0];
+        const balance = balanceRows[0];
 
-      if (!balance) {
-        throw new Error('Customer not found or insufficient funds');
-      }
+        if (!balance) {
+          throw new Error('Customer not found or insufficient funds');
+        }
 
-      const orderRows = await manager.query<InsertedOrderRow[]>(
-        `
+        const orderRows = await manager.query<InsertedOrderRow[]>(
+          `
         INSERT INTO orders (
           status,
           total_amount_cents,
@@ -140,20 +148,20 @@ export class CheckoutService {
         VALUES ('paid', $1, $2, $3)
         RETURNING id
       `,
-        [totalAmountCents, idempotencyKey, customerId],
-      );
+          [totalAmountCents, idempotencyKey, customerId],
+        );
 
-      const order = orderRows[0];
+        const order = orderRows[0];
 
-      if (!order) {
-        throw new Error('Order was not created');
-      }
+        if (!order) {
+          throw new Error('Order was not created');
+        }
 
-      const orderId = order.id;
+        const orderId = order.id;
 
-      for (const item of pricedCheckout.items) {
-        await manager.query(
-          `
+        for (const item of pricedCheckout.items) {
+          await manager.query(
+            `
             INSERT INTO order_items (
               quantity,
               unit_price_cents,
@@ -162,35 +170,58 @@ export class CheckoutService {
             )
             VALUES ($1, $2, $3, $4)
           `,
-          [item.quantity, item.unitPriceCents, orderId, item.productId],
-        );
-      }
+            [item.quantity, item.unitPriceCents, orderId, item.productId],
+          );
+        }
 
-      await manager.query(
-        `
+        await manager.query(
+          `
         INSERT INTO jobs (
           type,
           payload
         )
         VALUES ($1, $2::jsonb)
       `,
-        [
-          'order_post_processing',
-          JSON.stringify({
-            orderId,
-            customerId,
-          }),
-        ],
+          [
+            'order_post_processing',
+            JSON.stringify({
+              orderId,
+              customerId,
+            }),
+          ],
+        );
+
+        return {
+          orderId,
+          customerId,
+          status: OrderStatus.PAID,
+          totalAmountCents,
+          items: pricedCheckout.items,
+        };
+      });
+    } catch (error: unknown) {
+      if (!isIdempotencyUniqueViolation(error)) {
+        throw error;
+      }
+
+      const existingCheckout = await findExistingCheckout(
+        this.dataSource,
+        customerId,
+        idempotencyKey,
       );
 
-      return {
-        orderId,
-        customerId,
-        status: OrderStatus.PAID,
-        totalAmountCents,
-        items: pricedCheckout.items,
-      };
-    });
+      if (!existingCheckout) {
+        throw error;
+      }
+
+      if (!hasSameItems(existingCheckout, items)) {
+        throw new Error(
+          'Idempotency key was already used with different items',
+        );
+      }
+
+      return existingCheckout;
+    }
   }
 }
 
@@ -285,11 +316,11 @@ function compareByProductId(
 }
 
 async function findExistingCheckout(
-  manager: EntityManager,
+  executor: CheckoutQueryExecutor,
   customerId: string,
   idempotencyKey: string,
 ): Promise<CheckoutResult | null> {
-  const rows = await manager.query<ExistingCheckoutRow[]>(
+  const rows = await executor.query<ExistingCheckoutRow[]>(
     `
       SELECT
         orders.id AS order_id,
@@ -345,5 +376,20 @@ function hasSameItems(
         existingItem.quantity === requestedItem.quantity
       );
     })
+  );
+}
+
+function isIdempotencyUniqueViolation(
+  error: unknown,
+): error is QueryFailedError {
+  if (!(error instanceof QueryFailedError)) {
+    return false;
+  }
+
+  const driverError = error.driverError as PostgresDriverError;
+
+  return (
+    driverError.code === '23505' &&
+    driverError.constraint === 'UQ_orders_customer_id_idempotency_key'
   );
 }
