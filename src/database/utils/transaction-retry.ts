@@ -1,5 +1,5 @@
 import { EntityManager } from 'typeorm';
-import dataSource from './data-source';
+import dataSource from '../data-source';
 
 export type RetryResult<T> = {
   value: T;

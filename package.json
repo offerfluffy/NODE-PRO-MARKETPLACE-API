@@ -22,11 +22,11 @@
     "migrate:show": "npm run build --silent && bash scripts/with-secrets.sh dev typeorm migration:show -d dist/database/data-source.js",
     "migrate:revert": "npm run build --silent && bash scripts/with-secrets.sh dev typeorm migration:revert -d dist/database/data-source.js",
     "seed": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/seed/main.js",
-    "demo:nplus1": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo-nplus1.js",
-    "demo:race": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo-race.js",
-    "demo:workers": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo-workers.js",
-    "demo:retry": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo-retry.js",
-    "report": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/report.js"
+    "demo:nplus1": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo/demo-nplus1.js",
+    "demo:race": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo/demo-race.js",
+    "demo:workers": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo/demo-workers.js",
+    "demo:retry": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/demo/demo-retry.js",
+    "report": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/database/utils/report.js"
   },
   "keywords": [],
   "author": "",

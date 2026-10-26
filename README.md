@@ -130,7 +130,8 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
    printf '%s' 'app-v1-password' > secrets/db_password
    ```
 
-   Початковий пароль має збігатися з паролем `app_user` у `init.sql`.
+   Початковий пароль має збігатися з паролем `app_user` у
+   `src/database/raw-sql/init.sql`.
    `secrets/` і `.env` ігноруються Git та виключені з Docker-образу;
    `.env.example` залишається публічним контрактом конфігурації. Основний
    локальний шлях отримує змінні середовища `dev` з Infisical.
@@ -189,7 +190,9 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 
    `/db` має повернути HTTP 200, а `uptimeSec` — бути більшим за попереднє значення: процес API продовжує працювати без рестарту.
 
-Після видалення даних PostgreSQL (зокрема через `docker compose down -v`) нова БД отримує початковий пароль з `init.sql`, а локальний файл може містити ротований. Перед запуском із новою БД поверни початкове значення:
+Після видалення даних PostgreSQL (зокрема через `docker compose down -v`) нова
+БД отримує початковий пароль з `src/database/raw-sql/init.sql`, а локальний файл
+може містити ротований. Перед запуском із новою БД поверни початкове значення:
 
 ```bash
 printf '%s' 'app-v1-password' > secrets/db_password
@@ -224,8 +227,8 @@ docker compose down -v
 Застосувати схему та згенерувати дані:
 
 ```bash
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < db/schema.sql
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < db/seed.sql
+docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < src/database/raw-sql/schema.sql
+docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < src/database/raw-sql/seed.sql
 ```
 
 Зняти плани до індексів:
@@ -233,14 +236,14 @@ docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < db/seed.sql
 ```bash
 for n in 1 2 3 4; do
   docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q${n}.sql)"
+  "EXPLAIN (ANALYZE, BUFFERS) $(cat src/database/raw-sql/queries/q${n}.sql)"
 done
 ```
 
 Створити індекси та оновити статистику планера:
 
 ```bash
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < db/indexes.sql
+docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < src/database/raw-sql/indexes.sql
 docker compose exec -T db psql -U admin -d shop -c "ANALYZE;"
 ```
 
@@ -249,12 +252,12 @@ docker compose exec -T db psql -U admin -d shop -c "ANALYZE;"
 ```bash
 for n in 1 2 3; do
   docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q${n}.sql)"
+  "EXPLAIN (ANALYZE, BUFFERS) $(cat src/database/raw-sql/queries/q${n}.sql)"
 done
 
 for run in 1 2 3; do
   docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q4.sql)"
+  "EXPLAIN (ANALYZE, BUFFERS) $(cat src/database/raw-sql/queries/q4.sql)"
 done
 ```
 

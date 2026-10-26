@@ -1,6 +1,6 @@
-import dataSource from './data-source';
-import { OrderStatus } from './entities/order.entity';
-import { OrderItem } from './entities/orderItem.entity';
+import dataSource from '../data-source';
+import { OrderStatus } from '../entities/order.entity';
+import { OrderItem } from '../entities/orderItem.entity';
 
 interface SellerRevenueRow {
   sellerId: string;
