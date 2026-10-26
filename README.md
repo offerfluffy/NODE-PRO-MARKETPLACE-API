@@ -557,6 +557,72 @@ published verification result and production provider version. In CI,
 `PACT_BROKER_URL` and `PACT_BROKER_TOKEN` come from GitHub secrets,
 `PROVIDER_VERSION` is the commit SHA, and `PROVIDER_BRANCH` is the Git branch.
 
+### GitHub Actions contract gate
+
+The workflow in `.github/workflows/contract.yml` runs for every pull request
+and for pushes to `main`:
+
+```yaml
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+```
+
+A push to a branch with an open pull request therefore creates one
+`pull_request` run. After the pull request is merged, the resulting push to
+`main` creates one more run. Restricting the `push` trigger to `main` avoids the
+duplicate `push` and `pull_request` runs that would otherwise execute for every
+commit on a PR branch.
+
+The `contract` job performs the compatibility workflow in this order:
+
+1. Check out the exact Git commit and install dependencies with `npm ci`.
+2. Run `npm run test:contract` to generate the consumer Pact.
+3. Publish the Pact as `marketplace-web@${GITHUB_SHA}`.
+4. Run the real provider against PostgreSQL Testcontainers and publish the
+   verification as `marketplace-api@${GITHUB_SHA}`.
+5. Ask whether that consumer version can work with the provider version tagged
+   `prod`. The job exits with code `1` unless `deployable` is exactly `true`.
+
+The workflow requires these GitHub Actions repository secrets:
+
+| Secret              | Value                                                                |
+| ------------------- | -------------------------------------------------------------------- |
+| `PACT_BROKER_URL`   | Public HTTPS URL of the PactFlow tenant or another remote Broker     |
+| `PACT_BROKER_TOKEN` | Read/write Broker API token; never store the value in the repository |
+
+`CONSUMER_VERSION`, `PROVIDER_VERSION` and `PROVIDER_BRANCH` are derived from
+GitHub metadata and are not secrets. The local Compose URL
+`http://127.0.0.1:21130` cannot be used by GitHub-hosted runners because their
+loopback interface does not point to the developer machine.
+
+The `prod` tag belongs to one Broker only. A tag created in the local Compose
+Broker is not copied to PactFlow. A new remote Broker therefore needs a one-time
+bootstrap after its first successful provider verification:
+
+```bash
+PROVIDER_VERSION='<verified-provider-commit-sha>'
+
+curl --fail-with-body -i -X PUT \
+  "${PACT_BROKER_URL%/}/pacticipants/marketplace-api/versions/${PROVIDER_VERSION}/tags/prod" \
+  -H "Authorization: Bearer ${PACT_BROKER_TOKEN}" \
+  -H 'Content-Type: application/json'
+```
+
+After a real provider deployment, the same operation must tag the commit that
+was actually deployed. It belongs after deployment, not before
+`can-i-deploy`; tagging a PR candidate merely to make CI green would falsely
+claim that candidate is already running in production.
+
+Once production state has been bootstrapped, a new Git commit with unchanged
+Pact content remains deployable because the production provider has already
+verified that contract content. This was confirmed by a second CI run with a
+new commit SHA and an unchanged Pact. If the consumer contract changes,
+`deployable: null` or `false` is a legitimate block until the production
+provider is proven compatible; it should not be bypassed by moving the tag.
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
