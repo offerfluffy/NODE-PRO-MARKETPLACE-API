@@ -4,6 +4,7 @@ import { DatabaseModule } from '../database/database.module.js';
 import { OrdersRepository } from '../database/repositories/orders.repository.js';
 import { OrdersService } from './orders.service.js';
 import { OrdersController } from './orders.controller.js';
+import { CheckoutService } from './checkout.service.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -14,6 +15,7 @@ import { OrdersController } from './orders.controller.js';
       inject: [DataSource],
       useFactory: (dataSource: DataSource) => new OrdersRepository(dataSource),
     },
+    CheckoutService,
     OrdersService,
   ],
   exports: [],
