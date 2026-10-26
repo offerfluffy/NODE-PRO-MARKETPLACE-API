@@ -16,7 +16,7 @@
     "test:integration": "NODE_OPTIONS=--experimental-vm-modules jest test/integration",
     "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
     "test:e2e": "NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest test/e2e",
-    "contract:test": "node --test test/consumer.pact.test.mjs",
+    "test:contract": "node --test test/contract/consumer.pact.test.mjs",
     "check:env": "npm run build --silent && node scripts/check-env-example.mjs",
     "migration:generate": "npm run build --silent && bash scripts/with-secrets.sh dev typeorm migration:generate src/modules/database/migrations/InitialSchema -d dist/modules/database/data-source.js",
     "migrate": "npm run build --silent && bash scripts/with-secrets.sh dev typeorm migration:run -d dist/modules/database/data-source.js",
