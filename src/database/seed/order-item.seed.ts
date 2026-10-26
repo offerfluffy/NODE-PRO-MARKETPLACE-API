@@ -1,7 +1,7 @@
 import { EntityManager } from 'typeorm';
-import { Order } from '../entities/order.entity';
-import { OrderItem } from '../entities/orderItem.entity';
-import { Product } from '../entities/product.entity';
+import { Order } from '../entities/order.entity.js';
+import { OrderItem } from '../entities/orderItem.entity.js';
+import { Product } from '../entities/product.entity.js';
 
 type OrderItemSeed = Pick<OrderItem, 'quantity' | 'unitPriceCents'> & {
   orderKey: string;

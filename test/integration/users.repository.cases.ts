@@ -1,11 +1,11 @@
-import { User } from '../../src/database/entities/user.entity';
-import { UsersRepository } from '../../src/database/repositories/users.repository';
-import { aUser } from './testkit/builders';
+import { User } from '../../src/database/entities/user.entity.js';
+import { UsersRepository } from '../../src/database/repositories/users.repository.js';
+import { aUser } from './testkit/builders.js';
 import {
   startTestDatabase,
   stopTestDatabase,
   TestDatabase,
-} from './testkit/postgres';
+} from './testkit/postgres.js';
 
 describe('UsersRepository integration', () => {
   let database: TestDatabase | undefined;

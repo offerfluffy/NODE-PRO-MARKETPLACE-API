@@ -1,9 +1,9 @@
-import dataSource from '../data-source';
-import { seedInventories } from './inventory.seed';
-import { seedOrderItems } from './order-item.seed';
-import { seedOrders } from './order.seed';
-import { seedProducts } from './product.seed';
-import { seedUsers } from './user.seed';
+import dataSource from '../data-source.js';
+import { seedInventories } from './inventory.seed.js';
+import { seedOrderItems } from './order-item.seed.js';
+import { seedOrders } from './order.seed.js';
+import { seedProducts } from './product.seed.js';
+import { seedUsers } from './user.seed.js';
 
 async function seed(): Promise<void> {
   await dataSource.initialize();

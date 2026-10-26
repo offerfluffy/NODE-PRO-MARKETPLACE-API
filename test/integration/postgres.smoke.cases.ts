@@ -2,7 +2,7 @@ import {
   startTestDatabase,
   stopTestDatabase,
   TestDatabase,
-} from './testkit/postgres';
+} from './testkit/postgres.js';
 
 describe('PostgreSQL testcontainer', () => {
   let database: TestDatabase | undefined;

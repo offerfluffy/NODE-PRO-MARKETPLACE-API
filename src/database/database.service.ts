@@ -1,7 +1,7 @@
 import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
-import { Env } from '../config/env.schema';
+import { Env } from '../config/env.schema.js';
 import { readFile } from 'fs/promises';
 
 @Injectable()

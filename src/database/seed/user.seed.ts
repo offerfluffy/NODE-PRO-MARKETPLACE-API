@@ -1,5 +1,5 @@
 import { EntityManager } from 'typeorm';
-import { User, UserRole } from '../entities/user.entity';
+import { User, UserRole } from '../entities/user.entity.js';
 
 type UserSeed = Pick<
   User,

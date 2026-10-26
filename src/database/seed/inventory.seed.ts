@@ -1,6 +1,6 @@
 import { EntityManager } from 'typeorm';
-import { Inventory } from '../entities/inventory.entity';
-import { Product } from '../entities/product.entity';
+import { Inventory } from '../entities/inventory.entity.js';
+import { Product } from '../entities/product.entity.js';
 
 type InventorySeed = Pick<Inventory, 'quantityAvailable'> & {
   productKey: string;

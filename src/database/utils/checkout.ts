@@ -1,5 +1,5 @@
-import dataSource from '../data-source';
-import { Product, ProductStatus } from '../entities/product.entity';
+import dataSource from '../data-source.js';
+import { Product, ProductStatus } from '../entities/product.entity.js';
 
 export type CheckoutInput = {
   customerId: string;

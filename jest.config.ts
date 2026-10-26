@@ -1,5 +1,5 @@
 import type { Config } from 'jest';
-import { pathsToModuleNameMapper } from 'ts-jest';
+import { createDefaultEsmPreset, pathsToModuleNameMapper } from 'ts-jest';
 import ts from 'typescript';
 
 // Path aliases (e.g. the ones added by `nest g library`) live in tsconfig.json,
@@ -9,15 +9,19 @@ const { config: tsconfig } = ts.readConfigFile(
   ts.sys.readFile,
 );
 const paths = tsconfig?.compilerOptions?.paths ?? {};
+const esmPreset = createDefaultEsmPreset({
+  tsconfig: './tsconfig.json',
+});
 
 const config: Config = {
+  ...esmPreset,
   moduleFileExtensions: ['js', 'json', 'ts'],
   rootDir: '.',
   testRegex: '.*\\.spec\\.ts$',
-  transform: {
-    '^.+\\.(t|j)s$': 'ts-jest',
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+    ...pathsToModuleNameMapper(paths, { prefix: '<rootDir>/' }),
   },
-  moduleNameMapper: pathsToModuleNameMapper(paths, { prefix: '<rootDir>/' }),
   collectCoverageFrom: [
     'src/**/*.(t|j)s',
     'libs/**/*.(t|j)s',
@@ -25,6 +29,7 @@ const config: Config = {
   ],
   coverageDirectory: './coverage',
   testEnvironment: 'node',
+  watchman: false,
 
   reporters: ['default'],
   maxWorkers: 1,

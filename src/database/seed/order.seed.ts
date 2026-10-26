@@ -1,6 +1,6 @@
 import { EntityManager } from 'typeorm';
-import { Order, OrderStatus } from '../entities/order.entity';
-import { User } from '../entities/user.entity';
+import { Order, OrderStatus } from '../entities/order.entity.js';
+import { User } from '../entities/user.entity.js';
 
 type OrderSeed = Pick<
   Order,

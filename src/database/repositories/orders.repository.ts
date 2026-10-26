@@ -1,5 +1,5 @@
 import { DataSource, Repository } from 'typeorm';
-import { Order, OrderStatus } from '../entities/order.entity';
+import { Order, OrderStatus } from '../entities/order.entity.js';
 
 export type CreateOrderInput = {
   customerId: string;

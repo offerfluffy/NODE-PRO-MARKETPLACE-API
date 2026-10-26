@@ -9,11 +9,12 @@ import {
   OneToMany,
   OneToOne,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from './user.entity';
-import { Inventory } from './inventory.entity';
-import { OrderItem } from './orderItem.entity';
+import { User } from './user.entity.js';
+import { Inventory } from './inventory.entity.js';
+import { OrderItem } from './orderItem.entity.js';
 
 export enum ProductStatus {
   DRAFT = 'draft',
@@ -38,13 +39,13 @@ export class Product {
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'seller_id' })
-  seller!: User;
+  seller!: Relation<User>;
 
   @OneToOne(() => Inventory, (inventory) => inventory.product)
-  inventory!: Inventory;
+  inventory!: Relation<Inventory>;
 
   @OneToMany(() => OrderItem, (item) => item.product)
-  orderItems!: OrderItem[];
+  orderItems!: Relation<OrderItem[]>;
 
   @Column({ type: 'text' })
   name!: string;

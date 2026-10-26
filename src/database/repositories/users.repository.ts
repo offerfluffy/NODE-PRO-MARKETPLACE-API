@@ -1,5 +1,5 @@
 import { DataSource, Repository } from 'typeorm';
-import { User, UserRole } from '../entities/user.entity';
+import { User, UserRole } from '../entities/user.entity.js';
 
 export type CreateUserInput = {
   email: string;

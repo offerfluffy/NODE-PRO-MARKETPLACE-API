@@ -1,8 +1,8 @@
 import { DataSource } from 'typeorm';
-import dataSource from '../data-source';
-import { Order } from '../entities/order.entity';
-import { OrderItem } from '../entities/orderItem.entity';
-import { queryCountLogger } from './query-count.logger';
+import dataSource from '../data-source.js';
+import { Order } from '../entities/order.entity.js';
+import { OrderItem } from '../entities/orderItem.entity.js';
+import { queryCountLogger } from './query-count.logger.js';
 
 const demoDataSource = new DataSource({
   ...dataSource.options,

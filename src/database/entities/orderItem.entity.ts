@@ -7,9 +7,10 @@ import {
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
+  type Relation,
 } from 'typeorm';
-import { Order } from './order.entity';
-import { Product } from './product.entity';
+import { Order } from './order.entity.js';
+import { Product } from './product.entity.js';
 
 @Entity('order_items')
 @Check('CHK_order_items_unit_price_cents_positive', `"unit_price_cents" > 0`)
@@ -29,14 +30,14 @@ export class OrderItem {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'order_id' })
-  order!: Order;
+  order!: Relation<Order>;
 
   @ManyToOne(() => Product, {
     nullable: false,
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'product_id' })
-  product!: Product;
+  product!: Relation<Product>;
 
   @Column({ type: 'integer' })
   quantity!: number;

@@ -1,6 +1,6 @@
 import { EntityManager } from 'typeorm';
-import { Product, ProductStatus } from '../entities/product.entity';
-import { User } from '../entities/user.entity';
+import { Product, ProductStatus } from '../entities/product.entity.js';
+import { User } from '../entities/user.entity.js';
 
 type ProductSeed = Pick<
   Product,

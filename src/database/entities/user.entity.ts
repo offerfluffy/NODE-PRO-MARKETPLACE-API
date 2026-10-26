@@ -6,10 +6,11 @@ import {
   Index,
   OneToMany,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from 'typeorm';
-import { Order } from './order.entity';
-import { Product } from './product.entity';
+import { Order } from './order.entity.js';
+import { Product } from './product.entity.js';
 
 export const enum UserRole {
   CUSTOMER = 'customer',
@@ -29,10 +30,10 @@ export class User {
   id!: string;
 
   @OneToMany(() => Product, (product) => product.seller)
-  products!: Product[];
+  products!: Relation<Product[]>;
 
   @OneToMany(() => Order, (order) => order.customer)
-  orders!: Order[];
+  orders!: Relation<Order[]>;
 
   @Column({ type: 'text' })
   email!: string;

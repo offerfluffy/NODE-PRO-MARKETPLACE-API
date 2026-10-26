@@ -8,10 +8,11 @@ import {
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from './user.entity';
-import { OrderItem } from './orderItem.entity';
+import { User } from './user.entity.js';
+import { OrderItem } from './orderItem.entity.js';
 
 export enum OrderStatus {
   PENDING = 'pending',
@@ -46,10 +47,10 @@ export class Order {
     onDelete: 'RESTRICT',
   })
   @JoinColumn({ name: 'customer_id' })
-  customer!: User;
+  customer!: Relation<User>;
 
   @OneToMany(() => OrderItem, (item) => item.order)
-  items!: OrderItem[];
+  items!: Relation<OrderItem[]>;
 
   @Column({ type: 'text' })
   status!: OrderStatus;

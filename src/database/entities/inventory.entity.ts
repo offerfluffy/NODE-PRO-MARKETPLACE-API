@@ -6,9 +6,10 @@ import {
   JoinColumn,
   OneToOne,
   PrimaryGeneratedColumn,
+  type Relation,
   UpdateDateColumn,
 } from 'typeorm';
-import { Product } from './product.entity';
+import { Product } from './product.entity.js';
 
 @Entity('inventories')
 @Check('CHK_quantity_available', `"quantity_available" >= 0`)
@@ -24,7 +25,7 @@ export class Inventory {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'product_id' })
-  product!: Product;
+  product!: Relation<Product>;
 
   @Column({
     name: 'quantity_available',
