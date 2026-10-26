@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ConflictException,
   type HttpException,
   NotFoundException,
@@ -11,15 +10,10 @@ import {
   IdempotencyConflictError,
   InsufficientFundsError,
   InsufficientStockError,
-  InvalidCheckoutError,
   ProductUnavailableError,
 } from './checkout.errors.js';
 
 export function toCheckoutHttpException(error: unknown): HttpException {
-  if (error instanceof InvalidCheckoutError) {
-    return new BadRequestException(error.message);
-  }
-
   if (
     error instanceof ProductUnavailableError ||
     error instanceof CustomerUnavailableError

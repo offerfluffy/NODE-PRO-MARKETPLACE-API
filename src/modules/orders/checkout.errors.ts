@@ -5,8 +5,6 @@ export abstract class CheckoutError extends Error {
   }
 }
 
-export class InvalidCheckoutError extends CheckoutError {}
-
 export class ProductUnavailableError extends CheckoutError {}
 
 export class CustomerUnavailableError extends CheckoutError {}

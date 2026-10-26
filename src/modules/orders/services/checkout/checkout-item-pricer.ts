@@ -5,7 +5,6 @@ import {
 } from '../../../database/entities/product.entity.js';
 import {
   CheckoutTotalOutOfRangeError,
-  InvalidCheckoutError,
   ProductUnavailableError,
 } from '../../checkout.errors.js';
 import type {
@@ -18,8 +17,6 @@ export async function priceCheckoutItems(
   manager: EntityManager,
   items: CheckoutItemInput[],
 ): Promise<PricedCheckout> {
-  validateCheckoutItems(items);
-
   const productIds = items.map((item) => item.productId);
   const products = await manager.getRepository(Product).find({
     select: {
@@ -93,24 +90,4 @@ export function compareCheckoutItemsByProductId(
   }
 
   return 0;
-}
-
-function validateCheckoutItems(items: CheckoutItemInput[]): void {
-  if (items.length === 0) {
-    throw new InvalidCheckoutError('Order must contain at least one item');
-  }
-
-  const productIds = new Set<string>();
-
-  for (const item of items) {
-    if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
-      throw new InvalidCheckoutError('Quantity must be a positive integer');
-    }
-
-    if (productIds.has(item.productId)) {
-      throw new InvalidCheckoutError(`Duplicate product: ${item.productId}`);
-    }
-
-    productIds.add(item.productId);
-  }
 }
