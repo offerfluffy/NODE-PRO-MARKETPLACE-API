@@ -18,11 +18,7 @@ export const postgresBigintIdSchema = z.string().refine(
 
 export const createOrderSchema = z.strictObject({
   customer_id: postgresBigintIdSchema,
-  total_cents: z
-    .number()
-    .int()
-    .positive()
-    .max(MAX_POSTGRES_INTEGER),
+  total_cents: z.number().int().positive().max(MAX_POSTGRES_INTEGER),
   idempotency_key: z.string().trim().min(1),
 });
 

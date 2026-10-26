@@ -1,27 +1,41 @@
 import {
-  BadRequestException,
+  Body,
   Controller,
   Get,
   NotFoundException,
   Param,
+  Post,
 } from '@nestjs/common';
-import { OrderResponseDto } from './dto/order-response.dto.js';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
+import {
+  createOrderSchema,
+  postgresBigintIdSchema,
+  type CreateOrderDto,
+} from './dto/create-order.dto.js';
+import type { OrderResponseDto } from './dto/order-response.dto.js';
 import { OrdersService } from './orders.service.js';
-
-const MAX_POSTGRES_BIGINT = 9_223_372_036_854_775_807n;
 
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
-  @Get(':id')
-  async findById(@Param('id') id: string): Promise<OrderResponseDto> {
-    if (!isValidOrderId(id)) {
-      throw new BadRequestException(
-        'Order id must be a positive PostgreSQL bigint',
-      );
-    }
+  @Post()
+  async create(
+    @Body(new ZodValidationPipe(createOrderSchema))
+    body: CreateOrderDto,
+  ): Promise<OrderResponseDto> {
+    return this.ordersService.create({
+      customerId: body.customer_id,
+      totalAmountCents: body.total_cents,
+      idempotencyKey: body.idempotency_key,
+    });
+  }
 
+  @Get(':id')
+  async findById(
+    @Param('id', new ZodValidationPipe(postgresBigintIdSchema))
+    id: string,
+  ): Promise<OrderResponseDto> {
     const order = await this.ordersService.findById(id);
 
     if (!order) {
@@ -30,12 +44,4 @@ export class OrdersController {
 
     return order;
   }
-}
-
-function isValidOrderId(id: string): boolean {
-  if (!/^[1-9]\d*$/.test(id)) {
-    return false;
-  }
-
-  return BigInt(id) <= MAX_POSTGRES_BIGINT;
 }
