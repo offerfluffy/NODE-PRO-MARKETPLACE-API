@@ -28,7 +28,8 @@
     "demo:race": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/demo-race.js",
     "demo:workers": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/demo-workers.js",
     "demo:retry": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/demo-retry.js",
-    "report": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/report.js"
+    "report": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/report.js",
+    "verify:provider": "NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest test/contract/provider.pact.spec.ts"
   },
   "keywords": [],
   "author": "",
