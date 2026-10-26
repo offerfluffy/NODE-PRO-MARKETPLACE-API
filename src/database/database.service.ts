@@ -1,52 +1,20 @@
-import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Pool } from 'pg';
-import { Env } from '../config/env.schema.js';
-import { readFile } from 'fs/promises';
+import { Injectable } from '@nestjs/common';
+import { DataSource } from 'typeorm';
+
+type ConnectionCheck = {
+  current_user: string;
+  now: string;
+};
 
 @Injectable()
-export class DatabaseService implements OnApplicationShutdown {
-  private readonly pool: Pool;
+export class DatabaseService {
+  constructor(private readonly dataSource: DataSource) {}
 
-  constructor(private readonly config: ConfigService<Env, true>) {
-    const connectionString = config.get('DB_URL', { infer: true });
-    const passwordFile = config.get('DB_PASSWORD_FILE', { infer: true });
-
-    const dbUrl = new URL(connectionString);
-    const password = passwordFile
-      ? async () => {
-          const value = (await readFile(passwordFile, 'utf8')).trim();
-
-          if (!value) {
-            throw new Error('Database password file is empty');
-          }
-
-          return value;
-        }
-      : decodeURIComponent(dbUrl.password);
-
-    this.pool = new Pool({
-      host: dbUrl.hostname,
-      port: Number(dbUrl.port || 5432),
-      database: decodeURIComponent(dbUrl.pathname.slice(1)),
-      user: decodeURIComponent(dbUrl.username),
-      password,
-    });
-
-    this.pool.on('error', (e) => {
-      const code = (e as Error & { code?: string }).code ?? 'unknown';
-      Logger.log(`server closed idle-connection (code: ${code})`);
-    });
-  }
-  async checkConnection() {
-    const result = await this.pool.query(
+  async checkConnection(): Promise<ConnectionCheck | undefined> {
+    const rows = await this.dataSource.query<ConnectionCheck[]>(
       'SELECT current_user, now()::text AS now',
     );
 
-    return result.rows[0];
-  }
-
-  async onApplicationShutdown(): Promise<void> {
-    await this.pool.end();
+    return rows[0];
   }
 }
