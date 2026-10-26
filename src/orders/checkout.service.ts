@@ -1,17 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, In, type EntityManager } from 'typeorm';
 import { Product, ProductStatus } from '../database/entities/product.entity.js';
-
-export type CheckoutInput = {
-  customerId: string;
-  productId: string;
-  quantity: number;
-  idempotencyKey: string;
-};
+import { OrderStatus } from '../database/entities/order.entity.js';
 
 export type CheckoutItemInput = {
   productId: string;
   quantity: number;
+};
+
+export type CheckoutInput = {
+  customerId: string;
+  items: CheckoutItemInput[];
+  idempotencyKey: string;
+};
+
+export type CheckoutResult = {
+  orderId: string;
+  customerId: string;
+  status: OrderStatus;
+  totalAmountCents: number;
+  items: Array<{
+    productId: string;
+    quantity: number;
+    unitPriceCents: number;
+  }>;
 };
 
 type PricedCheckoutItem = CheckoutItemInput & {
@@ -21,12 +33,6 @@ type PricedCheckoutItem = CheckoutItemInput & {
 type PricedCheckout = {
   items: PricedCheckoutItem[];
   totalAmountCents: number;
-};
-
-export type CheckoutResult = {
-  orderId: string;
-  remainingStock: number;
-  remainingBalanceCents: number;
 };
 
 type InventoryUpdateRow = {
@@ -49,58 +55,32 @@ export class CheckoutService {
 
   async checkout({
     customerId,
-    productId,
-    quantity,
+    items,
     idempotencyKey,
   }: CheckoutInput): Promise<CheckoutResult> {
-    if (!Number.isInteger(quantity) || quantity <= 0) {
-      throw new Error('Quantity must be a positive integer');
-    }
-
     return this.dataSource.transaction(async (manager) => {
-      const pricedCheckout = await priceCheckoutItems(manager, [
-        {
-          productId,
-          quantity,
-        },
-      ]);
-
-      const pricedItem = pricedCheckout.items[0];
-
-      if (!pricedItem) {
-        throw new Error('Priced checkout item was not returned');
-      }
-
+      const pricedCheckout = await priceCheckoutItems(manager, items);
       const { totalAmountCents } = pricedCheckout;
 
-      if (
-        !Number.isSafeInteger(totalAmountCents) ||
-        totalAmountCents > 2_147_483_647
-      ) {
-        throw new Error('Order total is outside the supported range');
+      for (const item of pricedCheckout.items) {
+        const [inventoryRows] = await manager.query<
+          UpdateReturningResult<InventoryUpdateRow>
+        >(
+          `
+            UPDATE inventories
+            SET quantity_available = quantity_available - $2,
+                updated_at = now()
+            WHERE product_id = $1
+              AND quantity_available >= $2
+            RETURNING quantity_available
+          `,
+          [item.productId, item.quantity],
+        );
+
+        if (!inventoryRows[0]) {
+          throw new Error(`Insufficient stock for product ${item.productId}`);
+        }
       }
-
-      const [inventoryRows] = await manager.query<
-        UpdateReturningResult<InventoryUpdateRow>
-      >(
-        `
-        UPDATE inventories
-        SET quantity_available = quantity_available - $2,
-            updated_at = now()
-        WHERE product_id = $1
-            AND quantity_available >= $2
-        RETURNING quantity_available
-      `,
-        [productId, quantity],
-      );
-
-      const inventory = inventoryRows[0];
-
-      if (!inventory) {
-        throw new Error('Insufficient stock');
-      }
-
-      const remainingStock = inventory.quantity_available;
 
       const [balanceRows] = await manager.query<
         UpdateReturningResult<BalanceUpdateRow>
@@ -122,8 +102,6 @@ export class CheckoutService {
       if (!balance) {
         throw new Error('Customer not found or insufficient funds');
       }
-
-      const remainingBalanceCents = balance.balance_cents;
 
       const orderRows = await manager.query<InsertedOrderRow[]>(
         `
@@ -147,23 +125,20 @@ export class CheckoutService {
 
       const orderId = order.id;
 
-      await manager.query(
-        `
-        INSERT INTO order_items ( 
-          quantity,
-          unit_price_cents,
-          order_id,
-          product_id
-        )
-        VALUES ($1, $2, $3, $4)
-      `,
-        [
-          pricedItem.quantity,
-          pricedItem.unitPriceCents,
-          orderId,
-          pricedItem.productId,
-        ],
-      );
+      for (const item of pricedCheckout.items) {
+        await manager.query(
+          `
+            INSERT INTO order_items (
+              quantity,
+              unit_price_cents,
+              order_id,
+              product_id
+            )
+            VALUES ($1, $2, $3, $4)
+          `,
+          [item.quantity, item.unitPriceCents, orderId, item.productId],
+        );
+      }
 
       await manager.query(
         `
@@ -184,8 +159,10 @@ export class CheckoutService {
 
       return {
         orderId,
-        remainingStock,
-        remainingBalanceCents,
+        customerId,
+        status: OrderStatus.PAID,
+        totalAmountCents,
+        items: pricedCheckout.items,
       };
     });
   }
@@ -232,18 +209,20 @@ async function priceCheckoutItems(
     products.map((product) => [product.id, product]),
   );
 
-  const pricedItems = items.map((item): PricedCheckoutItem => {
-    const product = productsById.get(item.productId);
+  const pricedItems = items
+    .map((item): PricedCheckoutItem => {
+      const product = productsById.get(item.productId);
 
-    if (!product) {
-      throw new Error(`Product ${item.productId} is unavailable`);
-    }
+      if (!product) {
+        throw new Error(`Product ${item.productId} is unavailable`);
+      }
 
-    return {
-      ...item,
-      unitPriceCents: product.priceCents,
-    };
-  });
+      return {
+        ...item,
+        unitPriceCents: product.priceCents,
+      };
+    })
+    .sort(compareByProductId);
 
   const totalAmountCents = pricedItems.reduce(
     (total, item) =>
@@ -259,4 +238,22 @@ async function priceCheckoutItems(
     items: pricedItems,
     totalAmountCents: Number(totalAmountCents),
   };
+}
+
+function compareByProductId(
+  left: CheckoutItemInput,
+  right: CheckoutItemInput,
+): number {
+  const leftId = BigInt(left.productId);
+  const rightId = BigInt(right.productId);
+
+  if (leftId < rightId) {
+    return -1;
+  }
+
+  if (leftId > rightId) {
+    return 1;
+  }
+
+  return 0;
 }
