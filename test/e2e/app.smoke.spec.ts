@@ -4,12 +4,18 @@ import {
   stopTestApplication,
   type TestApplication,
 } from './testkit/app.js';
+import { seedDatabase } from '../../src/database/seed/seed-database.js';
+import {
+  Order,
+  OrderStatus,
+} from '../../src/database/entities/order.entity.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;
 
   beforeAll(async () => {
     context = await startTestApplication();
+    await seedDatabase(context.dataSource);
   });
 
   afterAll(async () => {
@@ -32,6 +38,37 @@ describe('Application E2E', () => {
     expect(response.body).toMatchObject({
       statusCode: 404,
       message: 'Order 999999 was not found',
+    });
+  });
+
+  it('returns an order with its items from the real database', async () => {
+    const seededOrder = await context.dataSource
+      .getRepository(Order)
+      .findOneByOrFail({
+        idempotencyKey: 'seed-order-001',
+      });
+
+    const response = await request(context.app.getHttpServer())
+      .get(`/orders/${seededOrder.id}`)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      id: seededOrder.id,
+      customer_id: expect.any(String),
+      status: OrderStatus.PENDING,
+      total_cents: 24_700,
+      items: [
+        {
+          product_id: expect.any(String),
+          quantity: 1,
+          price_cents: 12_900,
+        },
+        {
+          product_id: expect.any(String),
+          quantity: 2,
+          price_cents: 5_900,
+        },
+      ],
     });
   });
 });
