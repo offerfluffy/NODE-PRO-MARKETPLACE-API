@@ -9,6 +9,7 @@ import {
   Order,
   OrderStatus,
 } from '../../src/database/entities/order.entity.js';
+import { User } from '../../src/database/entities/user.entity.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;
@@ -70,5 +71,36 @@ describe('Application E2E', () => {
         },
       ],
     });
+  });
+
+  it('creates an order and reads it back', async () => {
+    const customer = await context.dataSource
+      .getRepository(User)
+      .findOneByOrFail({
+        email: 'customer.two@example.com',
+      });
+
+    const createResponse = await request(context.app.getHttpServer())
+      .post('/orders')
+      .send({
+        customer_id: customer.id,
+        total_cents: 34_500,
+        idempotency_key: 'e2e-create-read-order',
+      })
+      .expect(201);
+
+    expect(createResponse.body).toEqual({
+      id: expect.any(String),
+      customer_id: customer.id,
+      status: OrderStatus.PENDING,
+      total_cents: 34_500,
+      items: [],
+    });
+
+    const readResponse = await request(context.app.getHttpServer())
+      .get(`/orders/${createResponse.body.id}`)
+      .expect(200);
+
+    expect(readResponse.body).toEqual(createResponse.body);
   });
 });
