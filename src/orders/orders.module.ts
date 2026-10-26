@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { DatabaseModule } from '../database/database.module.js';
 import { OrdersRepository } from '../database/repositories/orders.repository.js';
+import { OrdersService } from './orders.service.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -11,6 +12,7 @@ import { OrdersRepository } from '../database/repositories/orders.repository.js'
       inject: [DataSource],
       useFactory: (dataSource: DataSource) => new OrdersRepository(dataSource),
     },
+    OrdersService,
   ],
   exports: [OrdersRepository],
 })
