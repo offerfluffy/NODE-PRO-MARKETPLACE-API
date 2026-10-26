@@ -26,15 +26,32 @@ describe('Pact provider verification', () => {
   it('satisfies the consumer contract', async () => {
     const providerBaseUrl = await context.app.getUrl();
 
+    const brokerUrl = process.env.PACT_BROKER_URL;
+
+    const pactSource = brokerUrl
+      ? {
+          pactBrokerUrl: brokerUrl,
+          publishVerificationResult: true,
+          providerVersion: process.env.PROVIDER_VERSION ?? '1.0.0',
+          providerVersionBranch: process.env.PROVIDER_BRANCH ?? 'main',
+          consumerVersionSelectors: [{ latest: true }],
+          ...(process.env.PACT_BROKER_TOKEN
+            ? { pactBrokerToken: process.env.PACT_BROKER_TOKEN }
+            : {}),
+        }
+      : {
+          pactUrls: [
+            path.resolve(
+              process.cwd(),
+              'pacts/marketplace-web-marketplace-api.json',
+            ),
+          ],
+        };
+
     await new Verifier({
       provider: 'marketplace-api',
       providerBaseUrl,
-      pactUrls: [
-        path.resolve(
-          process.cwd(),
-          'pacts/marketplace-web-marketplace-api.json',
-        ),
-      ],
+      ...pactSource,
       stateHandlers: {
         'order with id 1 exists': async () => {
           await seedDatabase(context.dataSource);
