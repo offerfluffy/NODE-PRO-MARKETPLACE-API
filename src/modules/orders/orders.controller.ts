@@ -4,6 +4,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -15,6 +16,7 @@ import {
 import type { OrderResponseDto } from './dto/order-response.dto.js';
 import { toCheckoutHttpException } from './checkout-http-error.mapper.js';
 import { OrdersService } from './services/orders.service.js';
+import { updateOrderStatusSchema, type UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
 
 @Controller('orders')
 export class OrdersController {
@@ -30,6 +32,16 @@ export class OrdersController {
     } catch (error: unknown) {
       throw toCheckoutHttpException(error);
     }
+  }
+
+  @Patch(":id/status")
+  async updateStatus(
+    @Body(new ZodValidationPipe(updateOrderStatusSchema))
+    body: UpdateOrderStatusDto,
+    @Param('id', new ZodValidationPipe(postgresBigintIdSchema))
+    id: string,
+  ) {
+
   }
 
   @Get(':id')
