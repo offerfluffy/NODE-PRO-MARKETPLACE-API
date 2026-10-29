@@ -77,6 +77,63 @@ describe('Application E2E', () => {
     });
   });
 
+  it('updates an order status and returns no content', async () => {
+    const orderRepository = context.dataSource.getRepository(Order);
+    const seededOrder = await orderRepository.findOneByOrFail({
+      idempotencyKey: 'seed-order-001',
+    });
+
+    const response = await request(context.app.getHttpServer())
+      .patch(`/orders/${seededOrder.id}/status`)
+      .send({ status: OrderStatus.PAID })
+      .expect(204);
+
+    expect(response.text).toBe('');
+
+    const updatedOrder = await orderRepository.findOneByOrFail({
+      id: seededOrder.id,
+    });
+
+    expect(updatedOrder.status).toBe(OrderStatus.PAID);
+  });
+
+  it('returns 404 when updating a missing order', async () => {
+    const response = await request(context.app.getHttpServer())
+      .patch('/orders/999999/status')
+      .send({ status: OrderStatus.PAID })
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      statusCode: 404,
+      message: 'Order 999999 was not found',
+    });
+  });
+
+  it('returns 400 and preserves the order when the status is invalid', async () => {
+    const orderRepository = context.dataSource.getRepository(Order);
+    const seededOrder = await orderRepository.findOneByOrFail({
+      idempotencyKey: 'seed-order-004',
+    });
+
+    const response = await request(context.app.getHttpServer())
+      .patch(`/orders/${seededOrder.id}/status`)
+      .send({ status: 'unknown' })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      message: 'Validation failed',
+      issues: expect.arrayContaining([
+        expect.objectContaining({ path: 'status' }),
+      ]),
+    });
+
+    const unchangedOrder = await orderRepository.findOneByOrFail({
+      id: seededOrder.id,
+    });
+
+    expect(unchangedOrder.status).toBe(OrderStatus.PENDING);
+  });
+
   it('creates a multi-item order, applies checkout once and reads it back', async () => {
     const userRepository = context.dataSource.getRepository(User);
     const productRepository = context.dataSource.getRepository(Product);
