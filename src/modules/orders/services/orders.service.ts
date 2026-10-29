@@ -5,6 +5,7 @@ import {
   type OrderResponseDto,
 } from '../dto/order-response.dto.js';
 import { CheckoutService } from './checkout/index.js';
+import { OrderStatus } from '../../database/entities/order.entity.js';
 
 export type CreateOrderCommand = {
   customerId: string;
@@ -56,5 +57,11 @@ export class OrdersService {
         price_cents: item.unitPriceCents,
       })),
     });
+  }
+
+  async updateStatus(id: string, status: OrderStatus): Promise<boolean> {
+    const result = await this.ordersRepository.updateStatus(id, status);
+
+    return result;
   }
 }

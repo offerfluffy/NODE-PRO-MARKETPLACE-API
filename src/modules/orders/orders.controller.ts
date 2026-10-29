@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   NotFoundException,
   Param,
   Patch,
@@ -16,7 +18,10 @@ import {
 import type { OrderResponseDto } from './dto/order-response.dto.js';
 import { toCheckoutHttpException } from './checkout-http-error.mapper.js';
 import { OrdersService } from './services/orders.service.js';
-import { updateOrderStatusSchema, type UpdateOrderStatusDto } from './dto/update-order-status.dto.js';
+import {
+  updateOrderStatusSchema,
+  type UpdateOrderStatusDto,
+} from './dto/update-order-status.dto.js';
 
 @Controller('orders')
 export class OrdersController {
@@ -34,14 +39,19 @@ export class OrdersController {
     }
   }
 
-  @Patch(":id/status")
+  @Patch(':id/status')
+  @HttpCode(HttpStatus.NO_CONTENT)
   async updateStatus(
     @Body(new ZodValidationPipe(updateOrderStatusSchema))
     body: UpdateOrderStatusDto,
     @Param('id', new ZodValidationPipe(postgresBigintIdSchema))
     id: string,
-  ) {
+  ): Promise<void> {
+    const result = await this.ordersService.updateStatus(id, body.status);
 
+    if (!result) {
+      throw new NotFoundException(`Order ${id} was not found`);
+    }
   }
 
   @Get(':id')
