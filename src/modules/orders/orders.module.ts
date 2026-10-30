@@ -20,7 +20,7 @@ import { OrdersGateway } from './realtime/orders.gateway.js';
     CheckoutService,
     OrdersService,
     OrderEventsService,
-    OrdersGateway
+    OrdersGateway,
   ],
   exports: [],
 })
