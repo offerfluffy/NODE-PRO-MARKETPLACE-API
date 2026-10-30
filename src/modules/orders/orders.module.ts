@@ -6,6 +6,7 @@ import { OrdersService } from './services/orders.service.js';
 import { OrdersController } from './orders.controller.js';
 import { CheckoutService } from './services/checkout/index.js';
 import { OrderEventsService } from './realtime/order-events.service.js';
+import { OrdersGateway } from './realtime/orders.gateway.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -19,6 +20,7 @@ import { OrderEventsService } from './realtime/order-events.service.js';
     CheckoutService,
     OrdersService,
     OrderEventsService,
+    OrdersGateway
   ],
   exports: [],
 })
