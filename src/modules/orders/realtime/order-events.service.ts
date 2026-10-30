@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Subject } from 'rxjs';
+import { filter, Subject, type Observable } from 'rxjs';
 import { type OrderStatus } from '../../database/entities/order.entity.js';
 
 export type OrderStatusChangedEvent = {
@@ -45,5 +45,9 @@ export class OrderEventsService {
     this.subject.next(event);
 
     return event;
+  }
+
+  public eventsFor(orderId: string): Observable<OrderStatusChangedEvent> {
+    return this.events$.pipe(filter((event) => event.orderId === orderId));
   }
 }
