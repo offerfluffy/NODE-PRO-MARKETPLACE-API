@@ -10,6 +10,14 @@ export type OrderStatusChangedEvent = {
 
 @Injectable()
 export class OrderEventsService {
+  private readonly bufferLimit = 100;
+
+  private readonly eventsByOrder =
+    new Map<string, OrderStatusChangedEvent[]>();
+
+  private readonly lastEventIdByOrder =
+    new Map<string, number>();
+
   private readonly subject = new Subject<OrderStatusChangedEvent>();
   readonly events$ = this.subject.asObservable();
 }
