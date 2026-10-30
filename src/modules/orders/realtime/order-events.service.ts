@@ -50,4 +50,14 @@ export class OrderEventsService {
   public eventsFor(orderId: string): Observable<OrderStatusChangedEvent> {
     return this.events$.pipe(filter((event) => event.orderId === orderId));
   }
+
+  public eventsAfter(
+    orderId: string,
+    lastEventId: number,
+  ): OrderStatusChangedEvent[] {
+    const bufferedEvents = (this.eventsByOrder.get(orderId) ?? []).filter(
+      (event) => event.id > lastEventId,
+    );
+    return bufferedEvents;
+  }
 }
