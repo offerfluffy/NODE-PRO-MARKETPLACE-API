@@ -650,17 +650,81 @@ new commit SHA and an unchanged Pact. If the consumer contract changes,
 `deployable: null` or `false` is a legitimate block until the production
 provider is proven compatible; it should not be bypassed by moving the tag.
 
+## 12. Realtime verification
+
+Run the API on `http://localhost:3000`, then use an existing seeded order:
+
+```bash
+export ORDER_ID=1
+```
+
+Verify the SSE response header:
+
+```bash
+curl -sN --max-time 2 -D - -o /dev/null \
+  "http://localhost:3000/orders/$ORDER_ID/events" |
+  grep -i '^content-type'
+```
+
+To inspect a live event, keep this command open in one terminal:
+
+```bash
+curl -sN --max-time 5 \
+  "http://localhost:3000/orders/$ORDER_ID/events"
+```
+
+While it is connected, change the status from another terminal:
+
+```bash
+curl --fail-with-body -i -X PATCH \
+  -H 'content-type: application/json' \
+  -d '{"status":"paid"}' \
+  "http://localhost:3000/orders/$ORDER_ID/status"
+```
+
+Create at least four events and verify replay after event `3`:
+
+```bash
+for next_status in paid completed cancelled paid; do
+  curl --fail-with-body -X PATCH \
+    -H 'content-type: application/json' \
+    -d "{\"status\":\"$next_status\"}" \
+    "http://localhost:3000/orders/$ORDER_ID/status" \
+    -o /dev/null
+done
+
+curl -sN --max-time 2 \
+  -H 'Last-Event-ID: 3' \
+  "http://localhost:3000/orders/$ORDER_ID/events" |
+  grep '^id:' |
+  head -1
+```
+
+Run the room-isolation demo in both modes:
+
+```bash
+node scripts/realtime-demo.mjs
+node scripts/realtime-demo.mjs --same-room
+```
+
+The first command prints `A_RECEIVED=1` and `B_RECEIVED=0`; the control mode
+prints `A_RECEIVED=1` and `B_RECEIVED=1`. Both commands exit with code `0`.
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
 use the variables exported from the local Docker Compose development
-credentials instead. `DATABASE_URL` goes through PgBouncer; the `DB_*`
-variables are used by the TypeORM commands:
+credentials instead. `DB_URL` is used by the API, `DATABASE_URL` is used by
+the backup scripts, and the `DB_*` variables are used by TypeORM commands:
 
 ```bash
 docker compose up -d --wait
 
 export DATABASE_URL=postgres://admin:admin_bootstrap@127.0.0.1:21120/shop
+mkdir -p secrets
+printf '%s' 'app-v1-password' > secrets/db_password
+export DB_URL=postgres://app_user@127.0.0.1:21120/shop
+export DB_PASSWORD_FILE=secrets/db_password
 export SKIP_VAULT=1
 export PORT=3000
 
@@ -687,3 +751,6 @@ npm run demo:retry
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 ```
+
+After the setup commands finish, start `npm run start` in one terminal and run
+the commands from [Realtime verification](#12-realtime-verification) in another.
