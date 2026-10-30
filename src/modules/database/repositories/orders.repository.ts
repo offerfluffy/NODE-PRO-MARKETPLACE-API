@@ -44,4 +44,13 @@ export class OrdersRepository {
       .orderBy('item.id', 'ASC')
       .getOne();
   }
+
+  async isOwnedByCustomer(id: string, customerId: string): Promise<boolean> {
+    return this.orders.existsBy({
+      id,
+      customer: {
+        id: customerId,
+      },
+    });
+  }
 }

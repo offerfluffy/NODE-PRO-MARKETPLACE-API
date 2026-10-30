@@ -71,4 +71,8 @@ export class OrdersService {
     this.orderEventsService.publish(id, status);
     return true;
   }
+
+  async isOwnedByCustomer(id: string, customerId: string): Promise<boolean> {
+    return this.ordersRepository.isOwnedByCustomer(id, customerId);
+  }
 }
