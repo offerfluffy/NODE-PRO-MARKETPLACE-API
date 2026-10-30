@@ -12,6 +12,42 @@ servers:
 security: []
 
 paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Check application health
+      responses:
+        "200":
+          description: Application process is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /db:
+    get:
+      operationId: checkDatabaseConnection
+      summary: Check the database connection
+      responses:
+        "200":
+          description: Database connection is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DatabaseConnectionResponse"
+
+  /config:
+    get:
+      operationId: getRuntimeConfig
+      summary: Get non-sensitive runtime configuration
+      responses:
+        "200":
+          description: Runtime configuration returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeConfigResponse"
+
   /products:
     get:
       operationId: listProducts
@@ -176,6 +212,60 @@ paths:
 
 components:
   schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - uptimeSec
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+        uptimeSec:
+          type: integer
+          minimum: 0
+
+    DatabaseConnectionResponse:
+      type: object
+      required:
+        - current_user
+        - now
+      properties:
+        current_user:
+          type: string
+        now:
+          type: string
+          description: Current PostgreSQL timestamp rendered as text.
+
+    RuntimeConfigResponse:
+      type: object
+      required:
+        - port
+        - logLevel
+        - timeoutMs
+        - dbHost
+        - dbUser
+      properties:
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        logLevel:
+          type: string
+          enum:
+            - debug
+            - info
+            - warn
+            - error
+        timeoutMs:
+          type: integer
+          minimum: 1
+        dbHost:
+          type: string
+        dbUser:
+          type: string
+
     Product:
       type: object
       required:

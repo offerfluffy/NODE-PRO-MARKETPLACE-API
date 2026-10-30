@@ -164,7 +164,10 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
    bash rotate.sh
    ```
 
-   Скрипт генерує новий пароль, виконує `ALTER ROLE`, оновлює `secrets/db_password`, а потім закриває старі з'єднання `app_user` через `pg_terminate_backend`. Наступне з'єднання пулу читає оновлений пароль.
+   Скрипт генерує новий пароль, виконує `ALTER ROLE`, синхронно оновлює
+   `secrets/db_password` і `pgbouncer/userlist.txt`, перезавантажує конфігурацію
+   PgBouncer, перевіряє нові credentials, а потім закриває старі з'єднання
+   `app_user` через `pg_terminate_backend`.
 
 3. Повтори перевірку:
 
@@ -177,10 +180,13 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 
 Після видалення даних PostgreSQL (зокрема через `docker compose down -v`) нова
 БД отримує початковий пароль з `docker/postgres/init.sql`, а локальний файл
-може містити ротований. Перед запуском із новою БД поверни початкове значення:
+і PgBouncer auth file можуть містити ротований. Перед запуском із новою БД
+поверни обидва до початкового значення:
 
 ```bash
 printf '%s' 'app-v1-password' > secrets/db_password
+printf '%s\n' '"admin" "admin_bootstrap"' '"app_user" "app-v1-password"' \
+  > pgbouncer/userlist.txt
 docker compose up -d
 ```
 
@@ -363,8 +369,8 @@ PGPASSWORD=app-v1-password psql \
 ### Backup
 
 The normal development path injects `DATABASE_URL` from the Infisical `dev`
-environment. The script creates a dated custom-format PostgreSQL archive under
-`backups/` and prints its path:
+environment. The script requires PostgreSQL 16 `pg_dump`, creates a dated
+custom-format PostgreSQL archive under `backups/`, and prints its path:
 
 ```bash
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
@@ -376,14 +382,18 @@ The archive can be inspected with:
 pg_restore --list backups/<printed-file-name>.dump
 ```
 
-`backup.cron` runs the same backup command every night at 02:00.
+`backup.cron` runs the same backup command every night at 02:00. It is prepared
+for a Linux server with PostgreSQL 16 client tools under
+`/usr/lib/postgresql/16/bin`; set `APP_DIR` in that file to the actual deployment
+directory before installing the crontab.
 
 ### Restore drill
 
-The drill selects the newest dump, creates a new empty PostgreSQL container and
-volume, restores the archive, and compares the `orders` row count and total
-amount with the source database. It prints `MATCH` on success and removes the
-temporary container and volume on exit, so a second run starts clean:
+The drill selects the newest dump, creates an isolated Compose project with a
+new empty PostgreSQL container and volume, restores the archive, and compares
+the `orders` row count and total amount with the source database. It prints
+`MATCH` on success and removes that run's temporary project and volume on exit,
+so parallel drills cannot delete each other's restore targets:
 
 ```bash
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh

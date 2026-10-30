@@ -25,26 +25,23 @@ fi
 echo "Latest backup: $LATEST_BACKUP"
 
 RESTORE_SERVICE="restore"
-RESTORE_VOLUME="marketplace-api-restore-drill-data"
+DRILL_PROJECT_NAME="${DRILL_PROJECT_NAME:-marketplace-api-drill-$(date +%s)-$$-$RANDOM}"
+
+compose_drill() {
+  docker compose --project-name "$DRILL_PROJECT_NAME" --profile drill "$@"
+}
 
 cleanup() {
-  docker compose --profile drill rm --stop --force \
-    "$RESTORE_SERVICE" >/dev/null 2>&1 || true
-
-  docker volume rm --force \
-    "$RESTORE_VOLUME" >/dev/null 2>&1 || true
+  compose_drill down --volumes --remove-orphans >/dev/null 2>&1 || true
 }
 
 trap cleanup EXIT
 
-# Remove leftovers from an interrupted previous drill.
-cleanup
-
 # Start a completely empty PostgreSQL restore target.
-docker compose --profile drill up -d --wait "$RESTORE_SERVICE"
+compose_drill up -d --wait "$RESTORE_SERVICE"
 
 ORDERS_TABLE_COUNT="$(
-  docker compose --profile drill exec -T "$RESTORE_SERVICE" \
+  compose_drill exec -T "$RESTORE_SERVICE" \
     psql -U restore_admin -d shop_restore -Atc \
     "SELECT count(*) FROM pg_tables
      WHERE schemaname = 'public'
@@ -69,7 +66,7 @@ echo "Source orders result: $SOURCE_RESULT"
 
 RESTORE_STARTED_AT=$SECONDS
 
-docker compose --profile drill exec -T "$RESTORE_SERVICE" \
+compose_drill exec -T "$RESTORE_SERVICE" \
   pg_restore \
     --username=restore_admin \
     --dbname=shop_restore \
@@ -79,7 +76,7 @@ docker compose --profile drill exec -T "$RESTORE_SERVICE" \
 RESTORE_SECONDS=$((SECONDS - RESTORE_STARTED_AT))
 
 RESTORED_RESULT="$(
-  docker compose --profile drill exec -T "$RESTORE_SERVICE" \
+  compose_drill exec -T "$RESTORE_SERVICE" \
     psql -U restore_admin -d shop_restore -Atc "$CHECK_SQL"
 )"
 
