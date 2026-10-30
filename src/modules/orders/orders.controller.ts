@@ -8,6 +8,9 @@ import {
   Param,
   Patch,
   Post,
+  Sse,
+  Headers,
+  type MessageEvent,
 } from '@nestjs/common';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import {
@@ -22,10 +25,15 @@ import {
   updateOrderStatusSchema,
   type UpdateOrderStatusDto,
 } from './dto/update-order-status.dto.js';
+import { OrderEventsService } from './realtime/order-events.service.js';
+import { concat, defer, from, map, startWith, type Observable } from 'rxjs';
 
 @Controller('orders')
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly orderEventsService: OrderEventsService,
+  ) {}
 
   @Post()
   async create(
@@ -66,5 +74,35 @@ export class OrdersController {
     }
 
     return order;
+  }
+
+  @Sse(':id/events')
+  events(
+    @Param('id', new ZodValidationPipe(postgresBigintIdSchema))
+    id: string,
+    @Headers('last-event-id')
+    lastEventIdHeader: string | undefined,
+  ): Observable<MessageEvent> {
+    const parsedLastEventId = Number(lastEventIdHeader ?? '0');
+    const lastEventId =
+      Number.isSafeInteger(parsedLastEventId) && parsedLastEventId >= 0
+        ? parsedLastEventId
+        : 0;
+
+    const events$ = defer(() =>
+      concat(
+        from(this.orderEventsService.eventsAfter(id, lastEventId)),
+        this.orderEventsService.eventsFor(id),
+      ),
+    );
+
+    return events$.pipe(
+      map((event): MessageEvent => ({
+        id: String(event.id),
+        type: 'order.status',
+        data: event,
+      })),
+      startWith<MessageEvent>({ retry: 1000 }),
+    );
   }
 }
