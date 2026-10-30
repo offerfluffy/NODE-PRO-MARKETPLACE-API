@@ -55,7 +55,24 @@ Auth: JWT access tokens with RBAC. Користувач буде передав�
 
 Deploy: Docker Compose для локальної розробки. API буде запускатися як Node.js container, а PostgreSQL - як окремий database container. Такий підхід спрощує запуск після clean clone і залишає можливість пізніше додати Redis або worker container.
 
-## 4. Trade-offs
+## 4. Trade-offs: WebSocket vs SSE
+
+| Criterion                 | WebSocket                                      | SSE                                                   |
+| ------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
+| Channel direction         | Bidirectional: client and server can send data | One-way: server sends events to the client            |
+| Reconnection and replay   | Must be implemented explicitly                 | Built-in reconnect; `Last-Event-ID` supports replay   |
+| Infrastructure            | Needs upgrade/proxy support and a cluster adapter | Uses ordinary HTTP streaming and works through most proxies |
+| Cost per event            | Compact frames after the initial handshake     | Adds text framing and HTTP connection overhead        |
+
+For order-status notifications, I would keep SSE in production because the
+data flow is one-way and reconnect/replay behavior is part of the protocol.
+WebSocket remains useful when the client also needs to send frequent realtime
+messages over the same connection.
+
+With two API instances, Socket.IO rooms are local to each instance, so an
+update handled by one instance can miss a client connected to another; a
+Socket.IO Redis adapter with shared Pub/Sub makes room broadcasts available
+across instances.
 
 I am not starting with microservices. The domain has clear modules, but splitting them into separate services now would add network calls, distributed transactions and deployment complexity before the core API contract is stable.
 
