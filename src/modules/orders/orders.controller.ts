@@ -102,7 +102,7 @@ export class OrdersController {
         type: 'order.status',
         data: event,
       })),
-      startWith<MessageEvent>({ retry: 1000 }),
+      startWith<MessageEvent>({ comment: 'connected' })
     );
   }
 }
