@@ -115,7 +115,7 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 
 | Змінна             | Обов'язкова | Приклад / дефолт                           | Призначення                                                                                                |
 | ------------------ | ----------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `PORT`             | Так         | `21100`                                    | Порт HTTP-сервера: ціле число від 1 до 65535.                                                              |
+| `PORT`             | Так         | `3000`                                     | Порт HTTP-сервера: ціле число від 1 до 65535.                                                              |
 | `DB_URL`           | Так         | `postgres://app_user@127.0.0.1:21120/shop` | Адреса PgBouncer із протоколом `postgres:`. Пароль зберігається в окремому файлі.                          |
 | `DB_PASSWORD_FILE` | Так         | `secrets/db_password`                      | Шлях до непорожнього файла з паролем користувача БД. Відносний шлях рахується від робочої теки застосунку. |
 | `LOG_LEVEL`        | Ні          | Дефолт: `info`                             | Допустимі значення: `debug`, `info`, `warn`, `error`.                                                      |
@@ -158,8 +158,8 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 4. В іншому терміналі перевір API та з'єднання з БД:
 
    ```bash
-   curl --fail http://localhost:21100/health
-   curl --fail http://localhost:21100/db
+   curl --fail http://localhost:3000/health
+   curl --fail http://localhost:3000/db
    ```
 
    Якщо змінив `PORT`, використовуй відповідний порт у запитах.
@@ -171,8 +171,8 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 1. Залиш API запущеним. Перевір з'єднання та запам'ятай `uptimeSec`:
 
    ```bash
-   curl --fail http://localhost:21100/db
-   curl --fail http://localhost:21100/health
+   curl --fail http://localhost:3000/db
+   curl --fail http://localhost:3000/health
    ```
 
 2. З кореня репозиторію виконай ротацію:
@@ -189,8 +189,8 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 3. Повтори перевірку:
 
    ```bash
-   curl --fail http://localhost:21100/db
-   curl --fail http://localhost:21100/health
+   curl --fail http://localhost:3000/db
+   curl --fail http://localhost:3000/health
    ```
 
    `/db` має повернути HTTP 200, а `uptimeSec` — бути більшим за попереднє значення: процес API продовжує працювати без рестарту.
@@ -662,6 +662,7 @@ docker compose up -d --wait
 
 export DATABASE_URL=postgres://admin:admin_bootstrap@127.0.0.1:21120/shop
 export SKIP_VAULT=1
+export PORT=3000
 
 export DB_HOST=127.0.0.1
 export DB_PORT=21110
