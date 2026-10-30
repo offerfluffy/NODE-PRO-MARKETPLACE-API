@@ -6,6 +6,7 @@ import {
 } from '../dto/order-response.dto.js';
 import { CheckoutService } from './checkout/index.js';
 import { OrderStatus } from '../../database/entities/order.entity.js';
+import { OrderEventsService } from '../realtime/order-events.service.js';
 
 export type CreateOrderCommand = {
   customerId: string;
@@ -21,6 +22,7 @@ export class OrdersService {
   constructor(
     private readonly ordersRepository: OrdersRepository,
     private readonly checkoutService: CheckoutService,
+    private readonly orderEventsService: OrderEventsService,
   ) {}
 
   async findById(id: string): Promise<OrderResponseDto | null> {
@@ -60,8 +62,13 @@ export class OrdersService {
   }
 
   async updateStatus(id: string, status: OrderStatus): Promise<boolean> {
-    const result = await this.ordersRepository.updateStatus(id, status);
+    const updated = await this.ordersRepository.updateStatus(id, status);
 
-    return result;
+    if (updated === false) {
+      return false;
+    }
+
+    this.orderEventsService.publish(id, status);
+    return true;
   }
 }
