@@ -1,6 +1,7 @@
 import {
   ConnectedSocket,
   MessageBody,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -11,6 +12,9 @@ import {
   joinOrderRoomSchema,
   socketAuthSchema,
 } from './join-order-room.dto.js';
+import { OnModuleDestroy } from '@nestjs/common';
+import { OrderEventsService } from './order-events.service.js';
+import { type Subscription } from 'rxjs';
 
 type JoinAck =
   | { ok: true; room: string }
@@ -20,8 +24,13 @@ type JoinAck =
     };
 
 @WebSocketGateway()
-export class OrdersGateway {
-  constructor(private readonly ordersService: OrdersService) {}
+export class OrdersGateway implements OnGatewayInit<Server>, OnModuleDestroy {
+  private eventsSubscription?: Subscription;
+
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly orderEventsService: OrderEventsService,
+  ) {}
 
   @WebSocketServer()
   server!: Server;
@@ -49,9 +58,27 @@ export class OrdersGateway {
       return { ok: false, error: 'forbidden' };
     }
 
-    const room = `orders:${payloadResult.data.orderId}`;
+    const room = this.roomForOrder(payloadResult.data.orderId);
     await socket.join(room);
 
     return { ok: true, room };
+  }
+
+  afterInit(server: Server): void {
+    this.eventsSubscription = this.orderEventsService.events$.subscribe(
+      (event) => {
+        const room = this.roomForOrder(event.orderId);
+
+        server.to(room).emit('order.status', event);
+      },
+    );
+  }
+
+  onModuleDestroy(): void {
+    this.eventsSubscription?.unsubscribe();
+  }
+
+  private roomForOrder(orderId: string): string {
+    return `orders:${orderId}`;
   }
 }
