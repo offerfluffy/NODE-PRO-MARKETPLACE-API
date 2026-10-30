@@ -1,0 +1,65 @@
+name: Contract tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+
+    env:
+      PACT_BROKER_URL: ${{ secrets.PACT_BROKER_URL }}
+      PACT_BROKER_TOKEN: ${{ secrets.PACT_BROKER_TOKEN }}
+      CONSUMER_VERSION: ${{ github.sha }}
+      PROVIDER_VERSION: ${{ github.sha }}
+      PROVIDER_BRANCH: ${{ github.head_ref || github.ref_name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate consumer contract
+        run: npm run test:contract
+
+      - name: Publish consumer contract
+        run: |
+          curl --fail-with-body --silent --show-error \
+            -X PUT \
+            "${PACT_BROKER_URL%/}/pacts/provider/marketplace-api/consumer/marketplace-web/version/${CONSUMER_VERSION}" \
+            -H "Authorization: Bearer ${PACT_BROKER_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data-binary @pacts/marketplace-web-marketplace-api.json
+
+      - name: Verify provider and publish result
+        run: npm run verify:provider
+
+      - name: Can consumer deploy to production
+        run: |
+          curl --fail-with-body --silent --show-error \
+            "${PACT_BROKER_URL%/}/can-i-deploy?pacticipant=marketplace-web&version=${CONSUMER_VERSION}&to=prod" \
+            -H "Authorization: Bearer ${PACT_BROKER_TOKEN}" \
+            -o /tmp/can-i-deploy.json
+
+          node -e '
+            const result = require("/tmp/can-i-deploy.json");
+            console.log(JSON.stringify(result.summary, null, 2));
+
+            if (result.summary.deployable !== true) {
+              process.exit(1);
+            }
+          '

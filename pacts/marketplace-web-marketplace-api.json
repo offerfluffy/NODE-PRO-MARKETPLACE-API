@@ -19,20 +19,38 @@
       },
       "response": {
         "body": {
-          "customer_id": "customer-1",
+          "customer_id": "3",
           "id": "1",
           "items": [
             {
-              "price_cents": 2649,
-              "product_id": "product-1",
+              "price_cents": 12900,
+              "product_id": "1",
+              "quantity": 1
+            },
+            {
+              "price_cents": 5900,
+              "product_id": "2",
               "quantity": 2
             }
           ],
           "status": "pending",
-          "total_cents": 5298
+          "total_cents": 24700
         },
         "headers": {
           "Content-Type": "application/json"
+        },
+        "matchingRules": {
+          "header": {
+            "Content-Type": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "regex",
+                  "regex": "^application\\/json(?:;\\s*charset=utf-8)?$"
+                }
+              ]
+            }
+          }
         },
         "status": 200
       }

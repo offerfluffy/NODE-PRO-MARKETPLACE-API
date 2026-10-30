@@ -71,27 +71,12 @@ I am not supporting multiple warehouses per product in the first version. Each p
 
 Обрано варіант А — consumer-driven contract testing with Pact.
 
-Тест `consumer.pact.test.mjs` перевіряє взаємодію `GET /orders/1` між
-консюмером `marketplace-web` і провайдером `marketplace-api`. Після успішного
-запуску Pact створює контракт у теці `pacts/`.
-
-Встановлення залежностей:
-
-```bash
-npm install
-```
-
-Запуск контрактного тесту:
-
-```bash
-npm run contract:test
-```
-
-Перевірка створеного Pact-контракту:
-
-```bash
-ls pacts/*.json
-```
+Consumer-тест описує взаємодію `GET /orders/1` між `marketplace-web` і
+`marketplace-api` та створює виконуваний контракт у `pacts/`. Provider
+verification запускає справжній Nest-застосунок із PostgreSQL Testcontainer,
+готує provider state у базі та перевіряє відповідь застосунку проти контракту.
+Pact Broker зберігає версії контрактів і результати їх перевірки; команди та
+повний локальний Broker workflow наведені в розділі [Testing](#11-testing).
 
 ## 6. OpenAPI validation
 
@@ -114,29 +99,33 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 | Змінна             | Обов'язкова | Приклад / дефолт                           | Призначення                                                                                                |
 | ------------------ | ----------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `PORT`             | Так         | `21100`                                    | Порт HTTP-сервера: ціле число від 1 до 65535.                                                              |
-| `DB_URL`           | Так         | `postgres://app_user@127.0.0.1:21110/shop` | Адреса PostgreSQL із протоколом `postgres:`. Пароль зберігається в окремому файлі.                         |
+| `DB_URL`           | Так         | `postgres://app_user@127.0.0.1:21120/shop` | Адреса PgBouncer із протоколом `postgres:`. Пароль зберігається в окремому файлі.                          |
 | `DB_PASSWORD_FILE` | Так         | `secrets/db_password`                      | Шлях до непорожнього файла з паролем користувача БД. Відносний шлях рахується від робочої теки застосунку. |
 | `LOG_LEVEL`        | Ні          | Дефолт: `info`                             | Допустимі значення: `debug`, `info`, `warn`, `error`.                                                      |
 | `TIMEOUT_MS`       | Ні          | Дефолт: `5000`                             | Налаштування таймауту в мілісекундах: додатне ціле число.                                                  |
 
 ### Локальний запуск
 
-1. Встанови залежності та створи локальну конфігурацію:
+1. Встанови залежності, увійди в Infisical і створи локальний файл пароля:
 
    ```bash
    npm ci
-   cp .env.example .env
+   infisical login
    mkdir -p secrets
    printf '%s' 'app-v1-password' > secrets/db_password
    ```
 
-   Початковий пароль має збігатися з паролем `app_user` у `init.sql`. `.env` і `secrets/` ігноруються Git та виключені з Docker-образу; у репозиторії зберігається контракт `.env.example`.
+   Початковий пароль має збігатися з паролем `app_user` у
+   `docker/postgres/init.sql`.
+   `secrets/` і `.env` ігноруються Git та виключені з Docker-образу;
+   `.env.example` залишається публічним контрактом конфігурації. Основний
+   локальний шлях отримує змінні середовища `dev` з Infisical.
 
 2. Перевір відповідність `.env.example` схемі та запусти PostgreSQL:
 
    ```bash
    npm run check:env
-   docker compose up -d
+   docker compose up -d --wait
    ```
 
 3. Запусти API в цьому терміналі:
@@ -145,7 +134,9 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
    npm run start
    ```
 
-   Команда збирає проєкт і запускає `dist/main.js`. Для розробки з автоматичним перезапуском є `npm run start:dev`.
+   Команда збирає проєкт, запускає його через
+   `scripts/with-secrets.sh dev` і отримує конфігурацію з Infisical. Для
+   розробки з автоматичним перезапуском є `npm run start:dev`.
 
 4. В іншому терміналі перевір API та з'єднання з БД:
 
@@ -184,79 +175,19 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 
    `/db` має повернути HTTP 200, а `uptimeSec` — бути більшим за попереднє значення: процес API продовжує працювати без рестарту.
 
-Після видалення даних PostgreSQL (зокрема через `docker compose down -v`) нова БД отримує початковий пароль з `init.sql`, а локальний файл може містити ротований. Перед запуском із новою БД поверни початкове значення:
+Після видалення даних PostgreSQL (зокрема через `docker compose down -v`) нова
+БД отримує початковий пароль з `docker/postgres/init.sql`, а локальний файл
+може містити ротований. Перед запуском із новою БД поверни початкове значення:
 
 ```bash
 printf '%s' 'app-v1-password' > secrets/db_password
 docker compose up -d
 ```
 
-## 8. PostgreSQL optimization homework
-
-Підняти PostgreSQL зі свіжого клону:
-
-```bash
-docker compose up -d --wait
-```
-
-Підключитися до PostgreSQL:
-
-```bash
-docker compose exec db psql -U admin -d shop
-```
-
-- Main table: `orders` (100,000 rows)
-- Search table: `products` (100,000 rows)
-
-### Повний цикл перевірки
-
-Очистити локальний volume, а потім виконати наведену вище команду підняття PostgreSQL:
-
-```bash
-docker compose down -v
-```
-
-Застосувати схему та згенерувати дані:
-
-```bash
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < db/schema.sql
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < db/seed.sql
-```
-
-Зняти плани до індексів:
-
-```bash
-for n in 1 2 3 4; do
-  docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q${n}.sql)"
-done
-```
-
-Створити індекси та оновити статистику планера:
-
-```bash
-docker compose exec -T db psql -U admin -d shop -v ON_ERROR_STOP=1 < db/indexes.sql
-docker compose exec -T db psql -U admin -d shop -c "ANALYZE;"
-```
-
-Зняти плани після індексів:
-
-```bash
-for n in 1 2 3; do
-  docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q${n}.sql)"
-done
-
-for run in 1 2 3; do
-  docker compose exec -T db psql -U admin -d shop -c \
-  "EXPLAIN (ANALYZE, BUFFERS) $(cat db/queries/q4.sql)"
-done
-```
-
-## 9. TypeORM data layer
+## 8. TypeORM data layer
 
 The PostgreSQL schema is represented by TypeORM entities in
-`src/database/entities`. Schema changes are applied through migrations;
+`src/modules/database/entities`. Schema changes are applied through migrations;
 `synchronize` is explicitly disabled so application startup cannot modify the
 database schema implicitly.
 
@@ -327,7 +258,7 @@ follows its product, and order items follow their order. `RESTRICT` protects
 business history: users referenced by products or orders cannot be removed, and
 products referenced by order items cannot be removed.
 
-## 10. Конкурентність
+## 9. Конкурентність
 
 Checkout виконує декремент залишку, списання балансу, створення замовлення,
 позиції замовлення та задачі на post-processing в одній транзакції. Якщо
@@ -399,13 +330,311 @@ npm run demo:workers
 npm run demo:retry
 ```
 
-## Grading
+## 10. Data layer ops
 
-The TypeORM commands use the local development PostgreSQL credentials from
-Docker Compose:
+### PgBouncer transaction mode
+
+PgBouncer uses transaction mode so that many application clients can share a
+small pool of real PostgreSQL connections. A server connection is assigned only
+for the duration of a transaction, so the next transaction may run on a
+different connection. As a result, session-level `SET` values,
+`LISTEN`/`NOTIFY` subscriptions, and session advisory locks cannot be expected
+to survive between transactions. Named prepared statements also require
+PgBouncer's `max_prepared_statements` support, which is enabled in this project.
+
+### Start the data layer
+
+Start PostgreSQL and PgBouncer and wait for both health checks:
 
 ```bash
 docker compose up -d --wait
+```
+
+The application connects through PgBouncer on host port `21120`; PostgreSQL's
+direct development port `21110` remains available for administrative TypeORM
+operations. A host-side connectivity check is:
+
+```bash
+PGPASSWORD=app-v1-password psql \
+  -h 127.0.0.1 -p 21120 -U app_user -d shop \
+  -c "SELECT 1 AS result, current_user;"
+```
+
+### Backup
+
+The normal development path injects `DATABASE_URL` from the Infisical `dev`
+environment. The script creates a dated custom-format PostgreSQL archive under
+`backups/` and prints its path:
+
+```bash
+bash scripts/with-secrets.sh dev bash scripts/backup.sh
+```
+
+The archive can be inspected with:
+
+```bash
+pg_restore --list backups/<printed-file-name>.dump
+```
+
+`backup.cron` runs the same backup command every night at 02:00.
+
+### Restore drill
+
+The drill selects the newest dump, creates a new empty PostgreSQL container and
+volume, restores the archive, and compares the `orders` row count and total
+amount with the source database. It prints `MATCH` on success and removes the
+temporary container and volume on exit, so a second run starts clean:
+
+```bash
+bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
+```
+
+The measured drill result and the RTO/RPO calculation are recorded in
+`RESTORE-DRILL.md`.
+
+## 11. Testing
+
+Docker має бути запущений, оскільки integration, E2E та provider verification
+створюють `postgres:16-alpine` через Testcontainers.
+
+Основні команди:
+
+```bash
+npx tsc --noEmit
+npm run test:integration
+npm run test:e2e
+npm run test:contract
+npm run verify:provider
+```
+
+### Integration tests
+
+```bash
+npm run test:integration
+```
+
+Integration tests start `postgres:16-alpine` through Testcontainers, apply all
+TypeORM migrations, and verify the repositories against a real PostgreSQL
+database.
+
+To verify that the tests are repeatable:
+
+```bash
+npm run test:integration && npm run test:integration
+```
+
+### Test isolation
+
+A separate PostgreSQL container is created for each test suite. Before every
+repository test, the database is cleaned with:
+
+```sql
+TRUNCATE users RESTART IDENTITY CASCADE;
+```
+
+The tests use `TRUNCATE` because the checkout logic manages its own
+transactions, and an outer `BEGIN`/`ROLLBACK` could conflict with those
+transaction boundaries. `RESTART IDENTITY` resets generated IDs, while
+`CASCADE` clears the related tables.
+
+### E2E tests
+
+```bash
+npm run test:e2e
+```
+
+E2E tests build the full Nest application with `AppModule` and no replaced
+providers. The application receives its database URL from a PostgreSQL
+Testcontainer. The suite covers a missing-order `404`, reading a seeded order,
+and the complete multi-item checkout flow: create, read back, inventory and
+balance changes, post-processing job creation, and idempotent retry.
+
+### Consumer contract and local provider verification
+
+Generate the Pact contract as the imaginary frontend consumer:
+
+```bash
+npm run test:contract
+ls pacts/*.json
+grep providerStates pacts/*.json
+```
+
+Verify the generated local Pact against the real Nest application:
+
+```bash
+npm run verify:provider
+```
+
+The consumer test talks to Pact's mock server. Provider verification is the
+opposite side: it starts the real application, uses the provider state
+`order with id 1 exists` to seed its Testcontainer database, and replays the
+contract request against that application.
+
+### Pact Broker and `can-i-deploy`
+
+Docker Compose runs two contract-specific services in addition to the
+Marketplace data layer:
+
+- `pact-broker` is the HTTP registry for contracts, versions, verification
+  results and deployment compatibility checks. It is available locally at
+  `http://127.0.0.1:21130`.
+- `broker-db` is the Broker's private PostgreSQL database. It contains contract
+  metadata, not marketplace users, products or orders.
+
+Start the Broker, generate the contract and publish consumer version `1.0.0`:
+
+```bash
+docker compose up -d --wait
+npm run test:contract
+
+curl --fail-with-body -i -X PUT \
+  'http://127.0.0.1:21130/pacts/provider/marketplace-api/consumer/marketplace-web/version/1.0.0' \
+  -H 'Content-Type: application/json' \
+  --data-binary @pacts/marketplace-web-marketplace-api.json
+```
+
+The normal local path obtains `PACT_BROKER_URL` and, for an authenticated remote
+Broker, `PACT_BROKER_TOKEN` from Infisical:
+
+```bash
+bash scripts/with-secrets.sh dev npm run verify:provider
+```
+
+The grader does not have access to the project's secret store, so the equivalent
+emergency path supplies the local Broker URL directly. `PROVIDER_VERSION` is an
+immutable application version, not a secret:
+
+```bash
+PACT_BROKER_URL=http://127.0.0.1:21130 \
+PROVIDER_VERSION=1.0.0 \
+PROVIDER_BRANCH=main \
+npm run verify:provider
+```
+
+With `PACT_BROKER_URL` present, `verify:provider` downloads the contract from the
+Broker and publishes its successful verification result. Before any provider
+version is tagged as production, the deployment query is deliberately blocked:
+
+```bash
+curl --silent \
+  'http://127.0.0.1:21130/can-i-deploy?pacticipant=marketplace-web&version=1.0.0&to=prod'
+```
+
+```json
+{
+  "deployable": null,
+  "reason": "There is no verified pact between version 1.0.0 of marketplace-web and the latest version of marketplace-api with tag prod (no such version exists)",
+  "success": 0,
+  "failed": 0,
+  "unknown": 1
+}
+```
+
+Tag provider version `1.0.0` as the version currently representing production:
+
+```bash
+curl --fail-with-body -i -X PUT \
+  'http://127.0.0.1:21130/pacticipants/marketplace-api/versions/1.0.0/tags/prod' \
+  -H 'Content-Type: application/json'
+```
+
+The tag does not deploy code. It gives `to=prod` a concrete provider version to
+compare with the consumer contract. Repeating the same `can-i-deploy` query now
+returns:
+
+```json
+{
+  "deployable": true,
+  "reason": "All required verification results are published and successful",
+  "success": 1,
+  "failed": 0,
+  "unknown": 0
+}
+```
+
+This `null` to `true` transition proves that the gate depends on an actual
+published verification result and production provider version. In CI,
+`PACT_BROKER_URL` and `PACT_BROKER_TOKEN` come from GitHub secrets,
+`PROVIDER_VERSION` is the commit SHA, and `PROVIDER_BRANCH` is the Git branch.
+
+### GitHub Actions contract gate
+
+The workflow in `.github/workflows/contract.yml` runs for every pull request
+and for pushes to `main`:
+
+```yaml
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+```
+
+A push to a branch with an open pull request therefore creates one
+`pull_request` run. After the pull request is merged, the resulting push to
+`main` creates one more run. Restricting the `push` trigger to `main` avoids the
+duplicate `push` and `pull_request` runs that would otherwise execute for every
+commit on a PR branch.
+
+The `contract` job performs the compatibility workflow in this order:
+
+1. Check out the exact Git commit and install dependencies with `npm ci`.
+2. Run `npm run test:contract` to generate the consumer Pact.
+3. Publish the Pact as `marketplace-web@${GITHUB_SHA}`.
+4. Run the real provider against PostgreSQL Testcontainers and publish the
+   verification as `marketplace-api@${GITHUB_SHA}`.
+5. Ask whether that consumer version can work with the provider version tagged
+   `prod`. The job exits with code `1` unless `deployable` is exactly `true`.
+
+The workflow requires these GitHub Actions repository secrets:
+
+| Secret              | Value                                                                |
+| ------------------- | -------------------------------------------------------------------- |
+| `PACT_BROKER_URL`   | Public HTTPS URL of the PactFlow tenant or another remote Broker     |
+| `PACT_BROKER_TOKEN` | Read/write Broker API token; never store the value in the repository |
+
+`CONSUMER_VERSION`, `PROVIDER_VERSION` and `PROVIDER_BRANCH` are derived from
+GitHub metadata and are not secrets. The local Compose URL
+`http://127.0.0.1:21130` cannot be used by GitHub-hosted runners because their
+loopback interface does not point to the developer machine.
+
+The `prod` tag belongs to one Broker only. A tag created in the local Compose
+Broker is not copied to PactFlow. A new remote Broker therefore needs a one-time
+bootstrap after its first successful provider verification:
+
+```bash
+PROVIDER_VERSION='<verified-provider-commit-sha>'
+
+curl --fail-with-body -i -X PUT \
+  "${PACT_BROKER_URL%/}/pacticipants/marketplace-api/versions/${PROVIDER_VERSION}/tags/prod" \
+  -H "Authorization: Bearer ${PACT_BROKER_TOKEN}" \
+  -H 'Content-Type: application/json'
+```
+
+After a real provider deployment, the same operation must tag the commit that
+was actually deployed. It belongs after deployment, not before
+`can-i-deploy`; tagging a PR candidate merely to make CI green would falsely
+claim that candidate is already running in production.
+
+Once production state has been bootstrapped, a new Git commit with unchanged
+Pact content remains deployable because the production provider has already
+verified that contract content. This was confirmed by a second CI run with a
+new commit SHA and an unchanged Pact. If the consumer contract changes,
+`deployable: null` or `false` is a legitimate block until the production
+provider is proven compatible; it should not be bypassed by moving the tag.
+
+## Grading
+
+The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
+use the variables exported from the local Docker Compose development
+credentials instead. `DATABASE_URL` goes through PgBouncer; the `DB_*`
+variables are used by the TypeORM commands:
+
+```bash
+docker compose up -d --wait
+
+export DATABASE_URL=postgres://admin:admin_bootstrap@127.0.0.1:21120/shop
+export SKIP_VAULT=1
 
 export DB_HOST=127.0.0.1
 export DB_PORT=21110
@@ -426,4 +655,7 @@ npm run report
 npm run demo:race
 npm run demo:workers
 npm run demo:retry
+
+bash scripts/with-secrets.sh dev bash scripts/backup.sh
+bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 ```
