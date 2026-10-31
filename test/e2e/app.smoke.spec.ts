@@ -1,4 +1,6 @@
 import request from 'supertest';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import { firstValueFrom } from 'rxjs';
 import {
   startTestApplication,
   stopTestApplication,
@@ -12,6 +14,8 @@ import {
 import { Inventory } from '../../src/modules/database/entities/inventory.entity.js';
 import { Product } from '../../src/modules/database/entities/product.entity.js';
 import { User } from '../../src/modules/database/entities/user.entity.js';
+import { OrdersController } from '../../src/modules/orders/orders.controller.js';
+import { OrderEventsService } from '../../src/modules/orders/realtime/order-events.service.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;
@@ -95,6 +99,70 @@ describe('Application E2E', () => {
     });
 
     expect(updatedOrder.status).toBe(OrderStatus.PAID);
+  });
+
+  it('protects the SSE stream by order ownership and sends a retry hint', async () => {
+    const orderRepository = context.dataSource.getRepository(Order);
+    const userRepository = context.dataSource.getRepository(User);
+    const controller = context.app.get(OrdersController);
+    const seededOrder = await orderRepository.findOneOrFail({
+      where: { idempotencyKey: 'seed-order-001' },
+      relations: { customer: true },
+    });
+    const anotherCustomer = await userRepository.findOneByOrFail({
+      email: 'customer.two@example.com',
+    });
+
+    await expect(
+      controller.events(seededOrder.id, undefined, undefined),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      controller.events(seededOrder.id, anotherCustomer.id, undefined),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    const stream = await controller.events(
+      seededOrder.id,
+      seededOrder.customer.id,
+      undefined,
+    );
+
+    await expect(firstValueFrom(stream)).resolves.toEqual({
+      comment: 'connected',
+      retry: 1_500,
+    });
+  });
+
+  it('keeps event ids and replay data after the event service is recreated', async () => {
+    const orderRepository = context.dataSource.getRepository(Order);
+    const seededOrder = await orderRepository.findOneByOrFail({
+      idempotencyKey: 'seed-order-002',
+    });
+    const serviceBeforeRestart = new OrderEventsService(context.dataSource);
+
+    let lastSeenEventId = 0;
+    for (let index = 0; index < 5; index += 1) {
+      const event = await serviceBeforeRestart.publish(
+        seededOrder.id,
+        OrderStatus.PAID,
+      );
+      lastSeenEventId = event.id;
+    }
+
+    const serviceAfterRestart = new OrderEventsService(context.dataSource);
+    const firstMissedEvent = await serviceAfterRestart.publish(
+      seededOrder.id,
+      OrderStatus.COMPLETED,
+    );
+    const secondMissedEvent = await serviceAfterRestart.publish(
+      seededOrder.id,
+      OrderStatus.CANCELLED,
+    );
+
+    await expect(
+      serviceAfterRestart.eventsAfter(seededOrder.id, lastSeenEventId),
+    ).resolves.toEqual([firstMissedEvent, secondMissedEvent]);
+    expect(firstMissedEvent.id).toBeGreaterThan(lastSeenEventId);
+    expect(secondMissedEvent.id).toBeGreaterThan(firstMissedEvent.id);
   });
 
   it('returns 404 when updating a missing order', async () => {

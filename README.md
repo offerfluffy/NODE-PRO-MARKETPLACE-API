@@ -656,12 +656,18 @@ Run the API on `http://localhost:3000`, then use an existing seeded order:
 
 ```bash
 export ORDER_ID=1
+export CUSTOMER_ID=3
 ```
+
+`x-user-id` is the temporary HTTP identity used by this homework until JWT
+authentication is introduced. The SSE endpoint returns `401` without it and
+`403` when the customer does not own the order.
 
 Verify the SSE response header:
 
 ```bash
 curl -sN --max-time 2 -D - -o /dev/null \
+  -H "x-user-id: $CUSTOMER_ID" \
   "http://localhost:3000/orders/$ORDER_ID/events" |
   grep -i '^content-type'
 ```
@@ -670,6 +676,7 @@ To inspect a live event, keep this command open in one terminal:
 
 ```bash
 curl -sN --max-time 5 \
+  -H "x-user-id: $CUSTOMER_ID" \
   "http://localhost:3000/orders/$ORDER_ID/events"
 ```
 
@@ -694,6 +701,7 @@ for next_status in paid completed cancelled paid; do
 done
 
 curl -sN --max-time 2 \
+  -H "x-user-id: $CUSTOMER_ID" \
   -H 'Last-Event-ID: 3' \
   "http://localhost:3000/orders/$ORDER_ID/events" |
   grep '^id:' |
@@ -703,8 +711,8 @@ curl -sN --max-time 2 \
 Run the room-isolation demo in both modes:
 
 ```bash
-node scripts/realtime-demo.mjs
-node scripts/realtime-demo.mjs --same-room
+npm run demo:realtime
+npm run demo:realtime -- --same-room
 ```
 
 The first command prints `A_RECEIVED=1` and `B_RECEIVED=0`; the control mode

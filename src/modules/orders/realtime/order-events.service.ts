@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { filter, Subject, type Observable } from 'rxjs';
+import { DataSource, MoreThan, type Repository } from 'typeorm';
 import { type OrderStatus } from '../../database/entities/order.entity.js';
+import { OrderStatusEvent } from '../../database/entities/orderStatusEvent.entity.js';
 
 export type OrderStatusChangedEvent = {
   id: number;
@@ -10,38 +12,23 @@ export type OrderStatusChangedEvent = {
 
 @Injectable()
 export class OrderEventsService {
-  private readonly bufferLimit = 100;
-
-  private readonly eventsByOrder = new Map<string, OrderStatusChangedEvent[]>();
-  private readonly lastEventIdByOrder = new Map<string, number>();
-
   private readonly subject = new Subject<OrderStatusChangedEvent>();
+  private readonly orderStatusEvents: Repository<OrderStatusEvent>;
   readonly events$ = this.subject.asObservable();
 
-  public publish(
+  constructor(dataSource: DataSource) {
+    this.orderStatusEvents = dataSource.getRepository(OrderStatusEvent);
+  }
+
+  public async publish(
     orderId: string,
     status: OrderStatus,
-  ): OrderStatusChangedEvent {
-    const lastEventId = this.lastEventIdByOrder.get(orderId);
+  ): Promise<OrderStatusChangedEvent> {
+    const persistedEvent = await this.orderStatusEvents.save(
+      this.orderStatusEvents.create({ order: { id: orderId }, status }),
+    );
 
-    const nextId = (lastEventId ?? 0) + 1;
-
-    this.lastEventIdByOrder.set(orderId, nextId);
-
-    const event = {
-      id: nextId,
-      orderId,
-      status,
-    };
-
-    const bufferedEvents = [...(this.eventsByOrder.get(orderId) ?? [])];
-    bufferedEvents.push(event);
-
-    if (bufferedEvents.length > this.bufferLimit) {
-      bufferedEvents.shift();
-    }
-
-    this.eventsByOrder.set(orderId, bufferedEvents);
+    const event = this.toEvent(persistedEvent);
     this.subject.next(event);
 
     return event;
@@ -51,13 +38,34 @@ export class OrderEventsService {
     return this.events$.pipe(filter((event) => event.orderId === orderId));
   }
 
-  public eventsAfter(
+  public async eventsAfter(
     orderId: string,
     lastEventId: number,
-  ): OrderStatusChangedEvent[] {
-    const bufferedEvents = (this.eventsByOrder.get(orderId) ?? []).filter(
-      (event) => event.id > lastEventId,
-    );
-    return bufferedEvents;
+  ): Promise<OrderStatusChangedEvent[]> {
+    const persistedEvents = await this.orderStatusEvents.find({
+      where: {
+        order: { id: orderId },
+        id: MoreThan(String(lastEventId)),
+      },
+      order: { id: 'ASC' },
+      relations: { order: true },
+    });
+
+    return persistedEvents.map((event) => this.toEvent(event));
+  }
+
+  private toEvent(persistedEvent: OrderStatusEvent): OrderStatusChangedEvent {
+    const id = Number(persistedEvent.id);
+    if (!Number.isSafeInteger(id)) {
+      throw new Error(
+        `Order event id ${persistedEvent.id} exceeds JavaScript safe integer range`,
+      );
+    }
+
+    return {
+      id,
+      orderId: persistedEvent.order.id,
+      status: persistedEvent.status,
+    };
   }
 }

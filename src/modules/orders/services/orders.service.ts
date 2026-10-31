@@ -68,7 +68,7 @@ export class OrdersService {
       return false;
     }
 
-    this.orderEventsService.publish(id, status);
+    await this.orderEventsService.publish(id, status);
     return true;
   }
 

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -10,6 +11,7 @@ import {
   Post,
   Sse,
   Headers,
+  UnauthorizedException,
   type MessageEvent,
 } from '@nestjs/common';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -26,7 +28,17 @@ import {
   type UpdateOrderStatusDto,
 } from './dto/update-order-status.dto.js';
 import { OrderEventsService } from './realtime/order-events.service.js';
-import { concat, defer, from, map, startWith, type Observable } from 'rxjs';
+import {
+  concat,
+  defer,
+  from,
+  map,
+  mergeMap,
+  startWith,
+  type Observable,
+} from 'rxjs';
+
+const SSE_RETRY_MS = 1_500;
 
 @Controller('orders')
 export class OrdersController {
@@ -77,24 +89,39 @@ export class OrdersController {
   }
 
   @Sse(':id/events')
-  events(
+  async events(
     @Param('id', new ZodValidationPipe(postgresBigintIdSchema))
     id: string,
+    @Headers('x-user-id') userIdHeader: string | undefined,
     @Headers('last-event-id')
     lastEventIdHeader: string | undefined,
-  ): Observable<MessageEvent> {
+  ): Promise<Observable<MessageEvent>> {
+    const userIdResult = postgresBigintIdSchema.safeParse(userIdHeader);
+    if (!userIdResult.success) {
+      throw new UnauthorizedException('A valid x-user-id header is required');
+    }
+
+    const ownsOrder = await this.ordersService.isOwnedByCustomer(
+      id,
+      userIdResult.data,
+    );
+    if (!ownsOrder) {
+      throw new ForbiddenException(
+        'The order does not belong to this customer',
+      );
+    }
+
     const parsedLastEventId = Number(lastEventIdHeader ?? '0');
     const lastEventId =
       Number.isSafeInteger(parsedLastEventId) && parsedLastEventId >= 0
         ? parsedLastEventId
         : 0;
 
-    const events$ = defer(() =>
-      concat(
-        from(this.orderEventsService.eventsAfter(id, lastEventId)),
-        this.orderEventsService.eventsFor(id),
-      ),
-    );
+    const replay$ = defer(() =>
+      from(this.orderEventsService.eventsAfter(id, lastEventId)),
+    ).pipe(mergeMap((events) => from(events)));
+
+    const events$ = concat(replay$, this.orderEventsService.eventsFor(id));
 
     return events$.pipe(
       map((event): MessageEvent => ({
@@ -102,7 +129,7 @@ export class OrdersController {
         type: 'order.status',
         data: event,
       })),
-      startWith<MessageEvent>({ comment: 'connected' })
+      startWith<MessageEvent>({ comment: 'connected', retry: SSE_RETRY_MS }),
     );
   }
 }
