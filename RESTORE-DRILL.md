@@ -36,7 +36,9 @@ databases.
 The `pg_restore` command completed in less than one whole second, so the
 script's integer timer printed `Restore time: 0s`. The complete drill was also
 run repeatedly; each run recreated a clean target and printed `MATCH`. The
-temporary restore container and volume were removed after each run.
+temporary restore container and volume were removed after each run. Every run
+uses a unique Compose project name, so concurrent drills have isolated
+containers and volumes and cannot clean up each other's targets.
 
 ## RTO and RPO
 

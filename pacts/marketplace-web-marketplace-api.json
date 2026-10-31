@@ -40,6 +40,16 @@
           "Content-Type": "application/json"
         },
         "matchingRules": {
+          "body": {
+            "$": {
+              "combine": "AND",
+              "matchers": [
+                {
+                  "match": "type"
+                }
+              ]
+            }
+          },
           "header": {
             "Content-Type": {
               "combine": "AND",

@@ -1,4 +1,5 @@
 SHELL=/bin/bash
-PATH=/opt/homebrew/opt/libpq@16/bin:/opt/homebrew/bin:/usr/bin:/bin
+PATH=/usr/lib/postgresql/16/bin:/usr/local/bin:/usr/bin:/bin
+APP_DIR=/srv/marketplace-api
 
-0 2 * * * cd /Users/home/Desktop/HW-09 && mkdir -p backups && /bin/bash scripts/with-secrets.sh dev /bin/bash scripts/backup.sh >> backups/backup.log 2>&1
+0 2 * * * cd "$APP_DIR" && mkdir -p backups && /bin/bash scripts/with-secrets.sh dev /bin/bash scripts/backup.sh >> backups/backup.log 2>&1

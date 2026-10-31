@@ -55,7 +55,24 @@ Auth: JWT access tokens with RBAC. Користувач буде передав�
 
 Deploy: Docker Compose для локальної розробки. API буде запускатися як Node.js container, а PostgreSQL - як окремий database container. Такий підхід спрощує запуск після clean clone і залишає можливість пізніше додати Redis або worker container.
 
-## 4. Trade-offs
+## 4. Trade-offs: WebSocket vs SSE
+
+| Criterion                 | WebSocket                                      | SSE                                                   |
+| ------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
+| Channel direction         | Bidirectional: client and server can send data | One-way: server sends events to the client            |
+| Reconnection and replay   | Must be implemented explicitly                 | Built-in reconnect; `Last-Event-ID` supports replay   |
+| Infrastructure            | Needs upgrade/proxy support and a cluster adapter | Uses ordinary HTTP streaming and works through most proxies |
+| Cost per event            | Compact frames after the initial handshake     | Adds text framing and HTTP connection overhead        |
+
+For order-status notifications, I would keep SSE in production because the
+data flow is one-way and reconnect/replay behavior is part of the protocol.
+WebSocket remains useful when the client also needs to send frequent realtime
+messages over the same connection.
+
+With two API instances, Socket.IO rooms are local to each instance, so an
+update handled by one instance can miss a client connected to another; a
+Socket.IO Redis adapter with shared Pub/Sub makes room broadcasts available
+across instances.
 
 I am not starting with microservices. The domain has clear modules, but splitting them into separate services now would add network calls, distributed transactions and deployment complexity before the core API contract is stable.
 
@@ -98,7 +115,7 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 
 | Змінна             | Обов'язкова | Приклад / дефолт                           | Призначення                                                                                                |
 | ------------------ | ----------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `PORT`             | Так         | `21100`                                    | Порт HTTP-сервера: ціле число від 1 до 65535.                                                              |
+| `PORT`             | Так         | `3000`                                     | Порт HTTP-сервера: ціле число від 1 до 65535.                                                              |
 | `DB_URL`           | Так         | `postgres://app_user@127.0.0.1:21120/shop` | Адреса PgBouncer із протоколом `postgres:`. Пароль зберігається в окремому файлі.                          |
 | `DB_PASSWORD_FILE` | Так         | `secrets/db_password`                      | Шлях до непорожнього файла з паролем користувача БД. Відносний шлях рахується від робочої теки застосунку. |
 | `LOG_LEVEL`        | Ні          | Дефолт: `info`                             | Допустимі значення: `debug`, `info`, `warn`, `error`.                                                      |
@@ -141,8 +158,8 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 4. В іншому терміналі перевір API та з'єднання з БД:
 
    ```bash
-   curl --fail http://localhost:21100/health
-   curl --fail http://localhost:21100/db
+   curl --fail http://localhost:3000/health
+   curl --fail http://localhost:3000/db
    ```
 
    Якщо змінив `PORT`, використовуй відповідний порт у запитах.
@@ -154,8 +171,8 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 1. Залиш API запущеним. Перевір з'єднання та запам'ятай `uptimeSec`:
 
    ```bash
-   curl --fail http://localhost:21100/db
-   curl --fail http://localhost:21100/health
+   curl --fail http://localhost:3000/db
+   curl --fail http://localhost:3000/health
    ```
 
 2. З кореня репозиторію виконай ротацію:
@@ -164,23 +181,29 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
    bash rotate.sh
    ```
 
-   Скрипт генерує новий пароль, виконує `ALTER ROLE`, оновлює `secrets/db_password`, а потім закриває старі з'єднання `app_user` через `pg_terminate_backend`. Наступне з'єднання пулу читає оновлений пароль.
+   Скрипт генерує новий пароль, виконує `ALTER ROLE`, синхронно оновлює
+   `secrets/db_password` і `pgbouncer/userlist.txt`, перезавантажує конфігурацію
+   PgBouncer, перевіряє нові credentials, а потім закриває старі з'єднання
+   `app_user` через `pg_terminate_backend`.
 
 3. Повтори перевірку:
 
    ```bash
-   curl --fail http://localhost:21100/db
-   curl --fail http://localhost:21100/health
+   curl --fail http://localhost:3000/db
+   curl --fail http://localhost:3000/health
    ```
 
    `/db` має повернути HTTP 200, а `uptimeSec` — бути більшим за попереднє значення: процес API продовжує працювати без рестарту.
 
 Після видалення даних PostgreSQL (зокрема через `docker compose down -v`) нова
 БД отримує початковий пароль з `docker/postgres/init.sql`, а локальний файл
-може містити ротований. Перед запуском із новою БД поверни початкове значення:
+і PgBouncer auth file можуть містити ротований. Перед запуском із новою БД
+поверни обидва до початкового значення:
 
 ```bash
 printf '%s' 'app-v1-password' > secrets/db_password
+printf '%s\n' '"admin" "admin_bootstrap"' '"app_user" "app-v1-password"' \
+  > pgbouncer/userlist.txt
 docker compose up -d
 ```
 
@@ -363,8 +386,8 @@ PGPASSWORD=app-v1-password psql \
 ### Backup
 
 The normal development path injects `DATABASE_URL` from the Infisical `dev`
-environment. The script creates a dated custom-format PostgreSQL archive under
-`backups/` and prints its path:
+environment. The script requires PostgreSQL 16 `pg_dump`, creates a dated
+custom-format PostgreSQL archive under `backups/`, and prints its path:
 
 ```bash
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
@@ -376,14 +399,18 @@ The archive can be inspected with:
 pg_restore --list backups/<printed-file-name>.dump
 ```
 
-`backup.cron` runs the same backup command every night at 02:00.
+`backup.cron` runs the same backup command every night at 02:00. It is prepared
+for a Linux server with PostgreSQL 16 client tools under
+`/usr/lib/postgresql/16/bin`; set `APP_DIR` in that file to the actual deployment
+directory before installing the crontab.
 
 ### Restore drill
 
-The drill selects the newest dump, creates a new empty PostgreSQL container and
-volume, restores the archive, and compares the `orders` row count and total
-amount with the source database. It prints `MATCH` on success and removes the
-temporary container and volume on exit, so a second run starts clean:
+The drill selects the newest dump, creates an isolated Compose project with a
+new empty PostgreSQL container and volume, restores the archive, and compares
+the `orders` row count and total amount with the source database. It prints
+`MATCH` on success and removes that run's temporary project and volume on exit,
+so parallel drills cannot delete each other's restore targets:
 
 ```bash
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
@@ -623,18 +650,91 @@ new commit SHA and an unchanged Pact. If the consumer contract changes,
 `deployable: null` or `false` is a legitimate block until the production
 provider is proven compatible; it should not be bypassed by moving the tag.
 
+## 12. Realtime verification
+
+Run the API on `http://localhost:3000`, then use an existing seeded order:
+
+```bash
+export ORDER_ID=1
+export CUSTOMER_ID=3
+```
+
+`x-user-id` is the temporary HTTP identity used by this homework until JWT
+authentication is introduced. The SSE endpoint returns `401` without it and
+`403` when the customer does not own the order.
+
+Verify the SSE response header:
+
+```bash
+curl -sN --max-time 2 -D - -o /dev/null \
+  -H "x-user-id: $CUSTOMER_ID" \
+  "http://localhost:3000/orders/$ORDER_ID/events" |
+  grep -i '^content-type'
+```
+
+To inspect a live event, keep this command open in one terminal:
+
+```bash
+curl -sN --max-time 5 \
+  -H "x-user-id: $CUSTOMER_ID" \
+  "http://localhost:3000/orders/$ORDER_ID/events"
+```
+
+While it is connected, change the status from another terminal:
+
+```bash
+curl --fail-with-body -i -X PATCH \
+  -H 'content-type: application/json' \
+  -d '{"status":"paid"}' \
+  "http://localhost:3000/orders/$ORDER_ID/status"
+```
+
+Create at least four events and verify replay after event `3`:
+
+```bash
+for next_status in paid completed cancelled paid; do
+  curl --fail-with-body -X PATCH \
+    -H 'content-type: application/json' \
+    -d "{\"status\":\"$next_status\"}" \
+    "http://localhost:3000/orders/$ORDER_ID/status" \
+    -o /dev/null
+done
+
+curl -sN --max-time 2 \
+  -H "x-user-id: $CUSTOMER_ID" \
+  -H 'Last-Event-ID: 3' \
+  "http://localhost:3000/orders/$ORDER_ID/events" |
+  grep '^id:' |
+  head -1
+```
+
+Run the room-isolation demo in both modes:
+
+```bash
+npm run demo:realtime
+npm run demo:realtime -- --same-room
+```
+
+The first command prints `A_RECEIVED=1` and `B_RECEIVED=0`; the control mode
+prints `A_RECEIVED=1` and `B_RECEIVED=1`. Both commands exit with code `0`.
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
 use the variables exported from the local Docker Compose development
-credentials instead. `DATABASE_URL` goes through PgBouncer; the `DB_*`
-variables are used by the TypeORM commands:
+credentials instead. `DB_URL` is used by the API, `DATABASE_URL` is used by
+the backup scripts, and the `DB_*` variables are used by TypeORM commands:
 
 ```bash
 docker compose up -d --wait
 
 export DATABASE_URL=postgres://admin:admin_bootstrap@127.0.0.1:21120/shop
+mkdir -p secrets
+printf '%s' 'app-v1-password' > secrets/db_password
+export DB_URL=postgres://app_user@127.0.0.1:21120/shop
+export DB_PASSWORD_FILE=secrets/db_password
 export SKIP_VAULT=1
+export PORT=3000
 
 export DB_HOST=127.0.0.1
 export DB_PORT=21110
@@ -659,3 +759,6 @@ npm run demo:retry
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 ```
+
+After the setup commands finish, start `npm run start` in one terminal and run
+the commands from [Realtime verification](#12-realtime-verification) in another.

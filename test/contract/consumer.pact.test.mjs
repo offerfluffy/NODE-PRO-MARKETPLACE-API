@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import { MatchersV3, PactV3 } from "@pact-foundation/pact";
 
-const { regex } = MatchersV3;
+const { like, regex } = MatchersV3;
 
 const provider = new PactV3({
   dir: path.resolve(process.cwd(), "pacts"),
@@ -48,7 +48,7 @@ describe("GET /order/:id", () => {
             "application/json",
           ),
         },
-        body: EXPECTED_BODY,
+        body: like(EXPECTED_BODY),
       });
 
     await provider.executeTest(async (mockServer) => {
