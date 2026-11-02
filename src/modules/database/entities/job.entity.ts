@@ -17,12 +17,20 @@ type OrderPostProcessingPayload = {
 @Check('CHK_jobs_status', `"status" IN ('pending', 'done')`)
 @Check('CHK_jobs_processed_positive_or_zero', `"processed" >= 0`)
 @Index('idx_jobs_status_id', ['status', 'id'])
+@Index('UQ_jobs_event_id', ['eventId'], { unique: true })
 export class Job {
   @PrimaryGeneratedColumn('identity', {
     type: 'bigint',
     generatedIdentity: 'ALWAYS',
   })
   id!: string;
+
+  @Column({
+    name: 'event_id',
+    type: 'text',
+    nullable: true,
+  })
+  eventId!: string | null;
 
   @Column({ type: 'text' })
   type!: string;
