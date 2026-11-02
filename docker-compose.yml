@@ -79,5 +79,18 @@ services:
       interval: 3s
       timeout: 3s
       retries: 30
+  rabbitmq:
+    image: rabbitmq:4.2-management-alpine
+    ports:
+      - '21140:5672'
+      - '21141:15672'
+    environment:
+      RABBITMQ_DEFAULT_USER: app
+      RABBITMQ_DEFAULT_PASS: app
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', '-q', 'check_running']
+      interval: 2s
+      timeout: 5s
+      retries: 30
 volumes:
   restore_data:
