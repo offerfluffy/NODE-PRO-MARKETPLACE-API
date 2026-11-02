@@ -7,9 +7,10 @@ import { OrdersController } from './orders.controller.js';
 import { CheckoutService } from './services/checkout/index.js';
 import { OrderEventsService } from './realtime/order-events.service.js';
 import { OrdersGateway } from './realtime/orders.gateway.js';
+import { MessagingModule } from '../messaging/messaging.module.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, MessagingModule],
   controllers: [OrdersController],
   providers: [
     {

@@ -12,6 +12,7 @@ type ExistingCheckoutRow = {
   product_id: string;
   quantity: number;
   unit_price_cents: number;
+  created_at: Date;
 };
 
 type CheckoutQueryExecutor = Pick<EntityManager, 'query'>;
@@ -32,6 +33,7 @@ export async function findExistingCheckout(
         orders.id AS order_id,
         orders.customer_id,
         orders.status,
+        orders.created_at,
         orders.total_amount_cents,
         order_items.product_id,
         order_items.quantity,
@@ -57,6 +59,7 @@ export async function findExistingCheckout(
     customerId: firstRow.customer_id,
     status: firstRow.status,
     totalAmountCents: firstRow.total_amount_cents,
+    createdAt: firstRow.created_at,
     items: rows.map((row) => ({
       productId: row.product_id,
       quantity: row.quantity,

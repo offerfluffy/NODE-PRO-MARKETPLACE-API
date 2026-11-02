@@ -718,6 +718,74 @@ npm run demo:realtime -- --same-room
 The first command prints `A_RECEIVED=1` and `B_RECEIVED=0`; the control mode
 prints `A_RECEIVED=1` and `B_RECEIVED=1`. Both commands exit with code `0`.
 
+## 13. Async-події через RabbitMQ
+
+Order checkout publishes an explicit `order.placed` contract to the durable
+topic exchange `shop.events`. The consumer-owned topology binds the durable
+quorum queue `shop.order-placed` with routing key `order.placed`. Permanent
+failures are rejected without requeue and routed through `shop.events.dlx` to
+the separate quorum queue `shop.order-placed.dlq`.
+
+The publisher reuses a confirm channel, marks messages persistent and waits for
+`waitForConfirms()`. The consumer uses `noAck: false`, applies the database
+effect first and acknowledges only afterward. Its effect is an
+`order_post_processing` job whose `event_id` has a PostgreSQL unique index;
+`INSERT ... ON CONFLICT (event_id) DO NOTHING` makes repeated delivery return
+`skipped` instead of creating a second job.
+
+Create the durable topology independently of the publisher:
+
+```bash
+npm run rabbitmq:bootstrap
+```
+
+The demos are self-cleaning and intentionally fail when the production API is
+still consuming the work queue. The recorded happy-path run was:
+
+```text
+published=5
+delivered=5
+effect=5
+acked=5
+dlq=0
+prefetch=10
+```
+
+The configured `prefetch=10` suits the short single-row PostgreSQL effect. The
+demo enforces a 10-second upper bound for the complete five-message run; even
+using that as a deliberately pessimistic per-message bound gives
+`10 × 10 s = 100 s < 1,800 s`, the stock RabbitMQ consumer timeout. A prefetch
+of one would unnecessarily serialize these short operations.
+
+The poison-message run rejected a schema-invalid event and read the broker's
+reason from `x-first-death-reason`/`x-death`:
+
+```text
+rejected=1
+work=0
+dlq=1
+dlq-reason=rejected
+effect=0
+```
+
+The duplicate run deliberately applies the effect and then performs one
+controlled `nack(message, false, true)`. RabbitMQ redelivers the same message
+with `redelivered=true`; the unique `event_id` turns the second effect into a
+no-op before the message is acknowledged:
+
+```text
+deliveries=2
+effect=1
+skipped=1
+```
+
+This is **at-least-once delivery**, not exactly-once delivery. An acknowledgement
+can be lost after the effect commits, so RabbitMQ may deliver the event again.
+The stable event ID and idempotent database insert produce an exactly-once
+result even when delivery is repeated. A separate gap still exists between the
+order transaction committing and the publisher sending the event; a
+transactional outbox in HW #22 is required to close that dual-write gap.
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
@@ -735,6 +803,7 @@ export DB_URL=postgres://app_user@127.0.0.1:21120/shop
 export DB_PASSWORD_FILE=secrets/db_password
 export SKIP_VAULT=1
 export PORT=3000
+export BROKER_URL=amqp://app:app@127.0.0.1:21140
 
 export DB_HOST=127.0.0.1
 export DB_PORT=21110
@@ -744,12 +813,17 @@ export DB_NAME=shop
 
 npm ci
 npm run build
+npx tsc --noEmit
 npm run migrate
 npm run migrate:show
 npm run migrate:revert
 npm run migrate
 npm run seed
 npm run seed
+npm run rabbitmq:bootstrap
+npm run demo:publish
+npm run demo:dlq
+npm run demo:duplicate
 npm run demo:nplus1
 npm run report
 npm run demo:race
