@@ -1,15 +1,36 @@
-import { connect, type Channel } from 'amqplib';
+import {
+  connect,
+  type Channel,
+  type ConsumeMessage,
+} from 'amqplib';
 import type { DataSource } from 'typeorm';
 import dataSource from '../src/modules/database/data-source.js';
 import {
   assertOrderPlacedTopology,
   ORDER_PLACED_TOPOLOGY,
 } from '../src/modules/messaging/rabbitmq/order-placed.topology.js';
-import type { OrderPlacedEvent } from '../src/modules/orders/events/order-placed.event.js';
+import { ORDER_PLACED_PREFETCH } from '../src/modules/messaging/rabbitmq/order-placed.consumer.js';
+import { applyOrderPlacedEffect } from '../src/modules/orders/events/apply-order-placed.effect.js';
+import {
+  orderPlacedEventSchema,
+  type OrderPlacedEvent,
+} from '../src/modules/orders/events/order-placed.event.js';
 
 export const DEMO_PUBLISH_EVENT_COUNT = 5;
 
 type QueryExecutor = Pick<DataSource, 'query'>;
+
+type DemoPublishStats = {
+  delivered: number;
+  effect: number;
+  acked: number;
+};
+
+type RunningDemoConsumer = {
+  stats: DemoPublishStats;
+  consumerTag: string;
+  completed: Promise<void>;
+};
 
 export function createDemoPublishEvents(): OrderPlacedEvent[] {
   return Array.from(
@@ -38,6 +59,105 @@ export function createDemoPublishEvents(): OrderPlacedEvent[] {
       };
     },
   );
+}
+
+export async function handleDemoPublishMessage(
+  channel: Channel,
+  message: ConsumeMessage,
+  stats: DemoPublishStats,
+): Promise<void> {
+  stats.delivered += 1;
+
+  const body: unknown = JSON.parse(
+    message.content.toString('utf8'),
+  );
+  const event = orderPlacedEventSchema.parse(body);
+
+  const result = await applyOrderPlacedEffect(
+    dataSource,
+    event,
+  );
+
+  if (result === 'applied') {
+    stats.effect += 1;
+  }
+
+  channel.ack(message);
+  stats.acked += 1;
+}
+
+export async function startDemoPublishConsumer(
+  channel: Channel,
+): Promise<RunningDemoConsumer> {
+  const stats: DemoPublishStats = {
+    delivered: 0,
+    effect: 0,
+    acked: 0,
+  };
+
+  let resolveCompleted!: () => void;
+  let rejectCompleted!: (error: unknown) => void;
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  const completed = new Promise<void>((resolve, reject) => {
+    resolveCompleted = resolve;
+    rejectCompleted = reject;
+  }).finally(() => {
+    if (timeout) {
+      clearTimeout(timeout);
+    }
+  });
+
+  await channel.prefetch(ORDER_PLACED_PREFETCH);
+
+  const { consumerTag } = await channel.consume(
+    ORDER_PLACED_TOPOLOGY.queue,
+    (message) => {
+      if (!message) {
+        rejectCompleted(
+          new Error('RabbitMQ cancelled the demo consumer'),
+        );
+        return;
+      }
+
+      void handleDemoPublishMessage(
+        channel,
+        message,
+        stats,
+      )
+        .then(() => {
+          if (stats.acked === DEMO_PUBLISH_EVENT_COUNT) {
+            resolveCompleted();
+          }
+        })
+        .catch((error: unknown) => {
+          try {
+            channel.reject(message, false);
+          } catch {
+            // A closed channel will requeue unacknowledged work.
+          }
+
+          rejectCompleted(error);
+        });
+    },
+    {
+      noAck: false,
+    },
+  );
+
+  timeout = setTimeout(() => {
+    rejectCompleted(
+      new Error(
+        `Timed out waiting for ${DEMO_PUBLISH_EVENT_COUNT} acknowledgements`,
+      ),
+    );
+  }, 10_000);
+
+  return {
+    stats,
+    consumerTag,
+    completed,
+  };
 }
 
 export async function cleanDemoPublishState(
