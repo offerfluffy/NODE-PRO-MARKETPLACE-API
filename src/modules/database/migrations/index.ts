@@ -7,5 +7,5 @@ export const databaseMigrations = [
   InitialSchema1791739678815,
   AddConcurrencySupport1791965248069,
   AddOrderStatusEvents1793470000000,
-  AddJobEventId1793641582317
+  AddJobEventId1793641582317,
 ];

@@ -8,7 +8,10 @@ import { CheckoutService } from './checkout/index.js';
 import { OrderStatus } from '../../database/entities/order.entity.js';
 import { OrderEventsService } from '../realtime/order-events.service.js';
 import { OrderPlacedPublisher } from '../../messaging/rabbitmq/order-placed.publisher.js';
-import { createOrderPlacedEvent, orderPlacedEventSchema } from '../events/order-placed.event.js';
+import {
+  createOrderPlacedEvent,
+  orderPlacedEventSchema,
+} from '../events/order-placed.event.js';
 
 export type CreateOrderCommand = {
   customerId: string;
@@ -51,7 +54,9 @@ export class OrdersService {
   async create(input: CreateOrderCommand): Promise<OrderResponseDto> {
     const checkout = await this.checkoutService.checkout(input);
 
-    const event = orderPlacedEventSchema.parse(createOrderPlacedEvent(checkout));;
+    const event = orderPlacedEventSchema.parse(
+      createOrderPlacedEvent(checkout),
+    );
     await this.orderPlacedPublisher.publish(event);
 
     return orderResponseSchema.parse({

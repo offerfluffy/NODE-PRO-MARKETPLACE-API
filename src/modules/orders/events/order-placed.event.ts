@@ -10,19 +10,19 @@ export const orderPlacedEventSchema = z.strictObject({
     orderId: postgresBigintIdSchema,
     customerId: postgresBigintIdSchema,
     totalAmountCents: z.number().int().positive(),
-    items: z.array(
-      z.strictObject({
-        productId: postgresBigintIdSchema,
-        quantity: z.number().int().positive(),
-        unitPriceCents: z.number().int().positive(),
-      }),
-    ).min(1),
+    items: z
+      .array(
+        z.strictObject({
+          productId: postgresBigintIdSchema,
+          quantity: z.number().int().positive(),
+          unitPriceCents: z.number().int().positive(),
+        }),
+      )
+      .min(1),
   }),
 });
 
-export type OrderPlacedEvent = z.infer<
-  typeof orderPlacedEventSchema
->;
+export type OrderPlacedEvent = z.infer<typeof orderPlacedEventSchema>;
 
 export function createOrderPlacedEvent(
   checkout: CheckoutResult,
