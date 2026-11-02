@@ -21,7 +21,9 @@ describe('UsersRepository integration', () => {
       throw new Error('Test database was not initialized');
     }
 
-    await database.dataSource.query('TRUNCATE users RESTART IDENTITY CASCADE');
+    await database.dataSource.query(
+      'TRUNCATE jobs, users RESTART IDENTITY CASCADE',
+    );
   });
 
   afterAll(async () => {

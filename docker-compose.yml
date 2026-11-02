@@ -81,4 +81,3 @@ services:
       retries: 30
 volumes:
   restore_data:
-    name: marketplace-api-restore-drill-data

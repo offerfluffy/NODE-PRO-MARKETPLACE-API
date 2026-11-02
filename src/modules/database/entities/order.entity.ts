@@ -13,6 +13,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity.js';
 import { OrderItem } from './orderItem.entity.js';
+import { OrderStatusEvent } from './orderStatusEvent.entity.js';
 
 export enum OrderStatus {
   PENDING = 'pending',
@@ -51,6 +52,9 @@ export class Order {
 
   @OneToMany(() => OrderItem, (item) => item.order)
   items!: Relation<OrderItem[]>;
+
+  @OneToMany(() => OrderStatusEvent, (event) => event.order)
+  statusEvents!: Relation<OrderStatusEvent[]>;
 
   @Column({ type: 'text' })
   status!: OrderStatus;

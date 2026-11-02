@@ -28,6 +28,12 @@ export class OrdersRepository {
     return this.orders.save(order);
   }
 
+  async updateStatus(id: string, status: OrderStatus): Promise<boolean> {
+    const result = await this.orders.update({ id }, { status });
+
+    return result.affected === 1;
+  }
+
   async findByIdWithItems(id: string): Promise<Order | null> {
     return this.orders
       .createQueryBuilder('purchase')
@@ -37,5 +43,14 @@ export class OrdersRepository {
       .where('purchase.id = :id', { id })
       .orderBy('item.id', 'ASC')
       .getOne();
+  }
+
+  async isOwnedByCustomer(id: string, customerId: string): Promise<boolean> {
+    return this.orders.existsBy({
+      id,
+      customer: {
+        id: customerId,
+      },
+    });
   }
 }
