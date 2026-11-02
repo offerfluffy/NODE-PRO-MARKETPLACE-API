@@ -146,26 +146,3 @@ export async function createOrderItems(
     );
   }
 }
-
-export async function enqueueOrderPostProcessing(
-  manager: EntityManager,
-  orderId: string,
-  customerId: string,
-): Promise<void> {
-  await manager.query(
-    `
-      INSERT INTO jobs (
-        type,
-        payload
-      )
-      VALUES ($1, $2::jsonb)
-    `,
-    [
-      'order_post_processing',
-      JSON.stringify({
-        orderId,
-        customerId,
-      }),
-    ],
-  );
-}

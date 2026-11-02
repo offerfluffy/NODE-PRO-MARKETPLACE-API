@@ -7,6 +7,8 @@ import {
 import { CheckoutService } from './checkout/index.js';
 import { OrderStatus } from '../../database/entities/order.entity.js';
 import { OrderEventsService } from '../realtime/order-events.service.js';
+import { OrderPlacedPublisher } from '../../messaging/rabbitmq/order-placed.publisher.js';
+import { createOrderPlacedEvent } from '../events/order-placed.event.js';
 
 export type CreateOrderCommand = {
   customerId: string;
@@ -23,6 +25,7 @@ export class OrdersService {
     private readonly ordersRepository: OrdersRepository,
     private readonly checkoutService: CheckoutService,
     private readonly orderEventsService: OrderEventsService,
+    private readonly orderPlacedPublisher: OrderPlacedPublisher,
   ) {}
 
   async findById(id: string): Promise<OrderResponseDto | null> {
@@ -47,6 +50,9 @@ export class OrdersService {
 
   async create(input: CreateOrderCommand): Promise<OrderResponseDto> {
     const checkout = await this.checkoutService.checkout(input);
+
+    const event = createOrderPlacedEvent(checkout);
+    await this.orderPlacedPublisher.publish(event);
 
     return orderResponseSchema.parse({
       id: checkout.orderId,

@@ -345,20 +345,8 @@ describe('Application E2E', () => {
         idempotencyKey: requestBody.idempotency_key,
       },
     });
-    const jobCountRows = await context.dataSource.query<
-      Array<{ count: number }>
-    >(
-      `
-        SELECT count(*)::integer AS count
-        FROM jobs
-        WHERE type = 'order_post_processing'
-          AND payload->>'orderId' = $1
-      `,
-      [createResponse.body.id],
-    );
 
     expect(orderCount).toBe(1);
-    expect(jobCountRows[0]?.count).toBe(1);
   });
 
   it('returns the same order id and creation time for an idempotent checkout retry', async () => {
