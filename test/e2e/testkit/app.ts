@@ -16,6 +16,7 @@ export async function startTestApplication(): Promise<TestApplication> {
   process.env.NODE_ENV = 'test';
   process.env.PORT = '3000';
   process.env.DB_URL = database.container.getConnectionUri();
+  process.env.BROKER_URL = 'amqp://app:app@127.0.0.1:21140';
   process.env.LOG_LEVEL = 'error';
   process.env.TIMEOUT_MS = '5000';
   delete process.env.DB_PASSWORD_FILE;
