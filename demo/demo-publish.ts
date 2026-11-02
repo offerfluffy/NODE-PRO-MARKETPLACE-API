@@ -34,32 +34,27 @@ type RunningDemoConsumer = {
 };
 
 export function createDemoPublishEvents(): OrderPlacedEvent[] {
-  return Array.from(
-    { length: DEMO_PUBLISH_EVENT_COUNT },
-    (_, index) => {
-      const orderId = String(900_001 + index);
+  return Array.from({ length: DEMO_PUBLISH_EVENT_COUNT }, (_, index) => {
+    const orderId = String(900_001 + index);
 
-      return {
-        eventId: `order.placed:${orderId}`,
-        type: 'order.placed',
-        occurredAt: new Date(
-          `2026-11-02T12:00:0${index}.000Z`,
-        ).toISOString(),
-        data: {
-          orderId,
-          customerId: '900001',
-          totalAmountCents: 7_500,
-          items: [
-            {
-              productId: '900001',
-              quantity: 1,
-              unitPriceCents: 7_500,
-            },
-          ],
-        },
-      };
-    },
-  );
+    return {
+      eventId: `order.placed:${orderId}`,
+      type: 'order.placed',
+      occurredAt: new Date(`2026-11-02T12:00:0${index}.000Z`).toISOString(),
+      data: {
+        orderId,
+        customerId: '900001',
+        totalAmountCents: 7_500,
+        items: [
+          {
+            productId: '900001',
+            quantity: 1,
+            unitPriceCents: 7_500,
+          },
+        ],
+      },
+    };
+  });
 }
 
 export async function handleDemoPublishMessage(
@@ -69,15 +64,10 @@ export async function handleDemoPublishMessage(
 ): Promise<void> {
   stats.delivered += 1;
 
-  const body: unknown = JSON.parse(
-    message.content.toString('utf8'),
-  );
+  const body: unknown = JSON.parse(message.content.toString('utf8'));
   const event = orderPlacedEventSchema.parse(body);
 
-  const result = await applyOrderPlacedEffect(
-    dataSource,
-    event,
-  );
+  const result = await applyOrderPlacedEffect(dataSource, event);
 
   if (result === 'applied') {
     stats.effect += 1;
@@ -115,17 +105,11 @@ export async function startDemoPublishConsumer(
     ORDER_PLACED_TOPOLOGY.queue,
     (message) => {
       if (!message) {
-        rejectCompleted(
-          new Error('RabbitMQ cancelled the demo consumer'),
-        );
+        rejectCompleted(new Error('RabbitMQ cancelled the demo consumer'));
         return;
       }
 
-      void handleDemoPublishMessage(
-        channel,
-        message,
-        stats,
-      )
+      void handleDemoPublishMessage(channel, message, stats)
         .then(() => {
           if (stats.acked === DEMO_PUBLISH_EVENT_COUNT) {
             resolveCompleted();
@@ -190,9 +174,7 @@ export async function cleanDemoPublishState(
   channel: Channel,
   events: OrderPlacedEvent[],
 ): Promise<void> {
-  const workQueue = await channel.checkQueue(
-    ORDER_PLACED_TOPOLOGY.queue,
-  );
+  const workQueue = await channel.checkQueue(ORDER_PLACED_TOPOLOGY.queue);
 
   if (workQueue.consumerCount !== 0) {
     throw new Error(
@@ -201,9 +183,7 @@ export async function cleanDemoPublishState(
   }
 
   await channel.purgeQueue(ORDER_PLACED_TOPOLOGY.queue);
-  await channel.purgeQueue(
-    ORDER_PLACED_TOPOLOGY.deadLetterQueue,
-  );
+  await channel.purgeQueue(ORDER_PLACED_TOPOLOGY.deadLetterQueue);
 
   await executor.query(
     `
@@ -229,7 +209,61 @@ async function main(): Promise<void> {
         await assertOrderPlacedTopology(channel);
         await cleanDemoPublishState(dataSource, channel, events);
 
-        // Publish/consume flow goes here next.
+        const publishChannel = await connection.createConfirmChannel();
+
+        try {
+          const consumer = await startDemoPublishConsumer(channel);
+
+          void consumer.completed.catch(() => undefined);
+
+          try {
+            const published = await publishDemoEvents(publishChannel, events);
+
+            await consumer.completed;
+
+            const workQueue = await channel.checkQueue(
+              ORDER_PLACED_TOPOLOGY.queue,
+            );
+            const deadLetterQueue = await channel.checkQueue(
+              ORDER_PLACED_TOPOLOGY.deadLetterQueue,
+            );
+
+            const effectRows = await dataSource.query<Array<{ count: number }>>(
+              `
+                SELECT count(*)::integer AS count
+                FROM jobs
+                WHERE event_id = ANY($1::text[])
+              `,
+              [events.map((event) => event.eventId)],
+            );
+
+            const persistedEffect = effectRows[0]?.count ?? 0;
+
+            console.log(`published=${published}`);
+            console.log(`delivered=${consumer.stats.delivered}`);
+            console.log(`effect=${consumer.stats.effect}`);
+            console.log(`acked=${consumer.stats.acked}`);
+            console.log(`dlq=${deadLetterQueue.messageCount}`);
+            console.log(`prefetch=${ORDER_PLACED_PREFETCH}`);
+
+            const valid =
+              published === DEMO_PUBLISH_EVENT_COUNT &&
+              consumer.stats.delivered === DEMO_PUBLISH_EVENT_COUNT &&
+              consumer.stats.effect === DEMO_PUBLISH_EVENT_COUNT &&
+              consumer.stats.acked === DEMO_PUBLISH_EVENT_COUNT &&
+              persistedEffect === DEMO_PUBLISH_EVENT_COUNT &&
+              workQueue.messageCount === 0 &&
+              deadLetterQueue.messageCount === 0;
+
+            if (!valid) {
+              throw new Error('demo:publish invariants failed');
+            }
+          } finally {
+            await channel.cancel(consumer.consumerTag);
+          }
+        } finally {
+          await publishChannel.close();
+        }
       } finally {
         await channel.close();
       }
