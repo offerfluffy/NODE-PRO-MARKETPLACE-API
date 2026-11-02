@@ -5,6 +5,7 @@ import {
   stopTestDatabase,
   type TestDatabase,
 } from '../../integration/testkit/postgres.js';
+import { OrderPlacedPublisher } from '../../../src/modules/messaging/rabbitmq/order-placed.publisher.js';
 
 export type TestApplication = TestDatabase & {
   app: INestApplication;
@@ -27,7 +28,12 @@ export async function startTestApplication(): Promise<TestApplication> {
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(OrderPlacedPublisher)
+      .useValue({
+        publish: async () => undefined,
+      })
+      .compile();
 
     const app = moduleRef.createNestApplication();
     await app.init();
