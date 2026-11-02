@@ -20,6 +20,12 @@ type BalanceUpdateRow = {
 
 type InsertedOrderRow = {
   id: string;
+  created_at: Date;
+};
+
+type CreatedOrder = {
+  id: string;
+  createdAt: Date;
 };
 
 type UpdateReturningResult<Row> = [rows: Row[], affected: number];
@@ -97,7 +103,7 @@ export async function createPaidOrder(
   customerId: string,
   idempotencyKey: string,
   totalAmountCents: number,
-): Promise<string> {
+): Promise<CreatedOrder> {
   const orderRows = await manager.query<InsertedOrderRow[]>(
     `
       INSERT INTO orders (
@@ -107,7 +113,7 @@ export async function createPaidOrder(
         customer_id
       )
       VALUES ('paid', $1, $2, $3)
-      RETURNING id
+      RETURNING id, created_at
     `,
     [totalAmountCents, idempotencyKey, customerId],
   );
@@ -117,7 +123,7 @@ export async function createPaidOrder(
     throw new Error('Order was not created');
   }
 
-  return order.id;
+  return { id: order.id, createdAt: order.created_at };
 }
 
 export async function createOrderItems(

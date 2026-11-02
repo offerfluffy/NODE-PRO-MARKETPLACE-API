@@ -47,7 +47,7 @@ export class CheckoutService {
           pricedCheckout.totalAmountCents,
         );
 
-        const orderId = await createPaidOrder(
+        const { id: orderId, createdAt } = await createPaidOrder(
           manager,
           customerId,
           idempotencyKey,
@@ -62,6 +62,7 @@ export class CheckoutService {
           customerId,
           status: OrderStatus.PAID,
           totalAmountCents: pricedCheckout.totalAmountCents,
+          createdAt,
           items: pricedCheckout.items,
         };
       });

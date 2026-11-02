@@ -16,6 +16,7 @@ import { Product } from '../../src/modules/database/entities/product.entity.js';
 import { User } from '../../src/modules/database/entities/user.entity.js';
 import { OrdersController } from '../../src/modules/orders/orders.controller.js';
 import { OrderEventsService } from '../../src/modules/orders/realtime/order-events.service.js';
+import { CheckoutService } from '../../src/modules/orders/services/checkout/index.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;
@@ -358,5 +359,30 @@ describe('Application E2E', () => {
 
     expect(orderCount).toBe(1);
     expect(jobCountRows[0]?.count).toBe(1);
+  });
+
+  it('returns the same order id and creation time for an idempotent checkout retry', async () => {
+    const checkoutService = context.app.get(CheckoutService);
+    const userRepository = context.dataSource.getRepository(User);
+    const productRepository = context.dataSource.getRepository(Product);
+    const [customer, product] = await Promise.all([
+      userRepository.findOneByOrFail({
+        email: 'customer.three@example.com',
+      }),
+      productRepository.findOneByOrFail({
+        name: 'USB-C Hub',
+      }),
+    ]);
+    const input = {
+      customerId: customer.id,
+      idempotencyKey: 'e2e-stable-checkout-timestamp',
+      items: [{ productId: product.id, quantity: 1 }],
+    };
+
+    const firstCheckout = await checkoutService.checkout(input);
+    const retriedCheckout = await checkoutService.checkout(input);
+
+    expect(retriedCheckout.orderId).toBe(firstCheckout.orderId);
+    expect(retriedCheckout.createdAt).toEqual(firstCheckout.createdAt);
   });
 });
