@@ -1,6 +1,7 @@
 import {
   connect,
   type Channel,
+  type ConfirmChannel,
   type ConsumeMessage,
 } from 'amqplib';
 import type { DataSource } from 'typeorm';
@@ -158,6 +159,30 @@ export async function startDemoPublishConsumer(
     consumerTag,
     completed,
   };
+}
+
+export async function publishDemoEvents(
+  channel: ConfirmChannel,
+  events: OrderPlacedEvent[],
+): Promise<number> {
+  for (const event of events) {
+    channel.publish(
+      ORDER_PLACED_TOPOLOGY.exchange,
+      ORDER_PLACED_TOPOLOGY.routingKey,
+      Buffer.from(JSON.stringify(event), 'utf8'),
+      {
+        persistent: true,
+        contentType: 'application/json',
+        contentEncoding: 'utf-8',
+        messageId: event.eventId,
+        type: event.type,
+      },
+    );
+  }
+
+  await channel.waitForConfirms();
+
+  return events.length;
 }
 
 export async function cleanDemoPublishState(
