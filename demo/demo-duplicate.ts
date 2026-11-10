@@ -1,8 +1,4 @@
-import {
-  connect,
-  type Channel,
-  type ConsumeMessage,
-} from 'amqplib';
+import { connect, type Channel, type ConsumeMessage } from 'amqplib';
 import dataSource from '../src/modules/database/data-source.js';
 import { ORDER_PLACED_PREFETCH } from '../src/modules/messaging/rabbitmq/order-placed.consumer.js';
 import {
@@ -56,9 +52,7 @@ async function cleanDemoState(
   channel: Channel,
   event: OrderPlacedEvent,
 ): Promise<void> {
-  const workQueue = await channel.checkQueue(
-    ORDER_PLACED_TOPOLOGY.queue,
-  );
+  const workQueue = await channel.checkQueue(ORDER_PLACED_TOPOLOGY.queue);
 
   if (workQueue.consumerCount !== 0) {
     throw new Error(
@@ -67,13 +61,10 @@ async function cleanDemoState(
   }
 
   await channel.purgeQueue(ORDER_PLACED_TOPOLOGY.queue);
-  await channel.purgeQueue(
-    ORDER_PLACED_TOPOLOGY.deadLetterQueue,
-  );
-  await dataSource.query(
-    'DELETE FROM jobs WHERE event_id = $1',
-    [event.eventId],
-  );
+  await channel.purgeQueue(ORDER_PLACED_TOPOLOGY.deadLetterQueue);
+  await dataSource.query('DELETE FROM jobs WHERE event_id = $1', [
+    event.eventId,
+  ]);
 }
 
 async function startDuplicateConsumer(
@@ -117,26 +108,21 @@ async function startDuplicateConsumer(
     ORDER_PLACED_TOPOLOGY.queue,
     (message) => {
       if (!message) {
-        fail(
-          new Error('RabbitMQ cancelled the duplicate demo consumer'),
-        );
+        fail(new Error('RabbitMQ cancelled the duplicate demo consumer'));
         return;
       }
 
-      void handleDuplicateMessage(
-        channel,
-        message,
-        stats,
-        succeed,
-      ).catch((error: unknown) => {
-        try {
-          channel.reject(message, false);
-        } catch {
-          // Closing the channel requeues unacknowledged work.
-        }
+      void handleDuplicateMessage(channel, message, stats, succeed).catch(
+        (error: unknown) => {
+          try {
+            channel.reject(message, false);
+          } catch {
+            // Closing the channel requeues unacknowledged work.
+          }
 
-        fail(error);
-      });
+          fail(error);
+        },
+      );
     },
     { noAck: false },
   );
@@ -161,14 +147,9 @@ async function handleDuplicateMessage(
 ): Promise<void> {
   stats.deliveries += 1;
 
-  const body: unknown = JSON.parse(
-    message.content.toString('utf8'),
-  );
+  const body: unknown = JSON.parse(message.content.toString('utf8'));
   const event = orderPlacedEventSchema.parse(body);
-  const result = await applyOrderPlacedEffect(
-    dataSource,
-    event,
-  );
+  const result = await applyOrderPlacedEffect(dataSource, event);
 
   if (result === 'applied') {
     stats.effect += 1;
@@ -222,8 +203,7 @@ async function main(): Promise<void> {
         void consumer.completed.catch(() => undefined);
 
         try {
-          const publishChannel =
-            await connection.createConfirmChannel();
+          const publishChannel = await connection.createConfirmChannel();
 
           try {
             publishChannel.publish(
@@ -247,9 +227,7 @@ async function main(): Promise<void> {
             const deadLetterQueue = await channel.checkQueue(
               ORDER_PLACED_TOPOLOGY.deadLetterQueue,
             );
-            const effectRows = await dataSource.query<
-              Array<{ count: number }>
-            >(
+            const effectRows = await dataSource.query<Array<{ count: number }>>(
               `
                 SELECT count(*)::integer AS count
                 FROM jobs
@@ -257,12 +235,9 @@ async function main(): Promise<void> {
               `,
               [event.eventId],
             );
-            const persistedEffect =
-              effectRows[0]?.count ?? 0;
+            const persistedEffect = effectRows[0]?.count ?? 0;
 
-            console.log(
-              `deliveries=${consumer.stats.deliveries}`,
-            );
+            console.log(`deliveries=${consumer.stats.deliveries}`);
             console.log(`effect=${consumer.stats.effect}`);
             console.log(`skipped=${consumer.stats.skipped}`);
 
@@ -282,9 +257,7 @@ async function main(): Promise<void> {
             await publishChannel.close();
           }
         } finally {
-          consumer.stopWaiting(
-            new Error('Duplicate demo consumer stopped'),
-          );
+          consumer.stopWaiting(new Error('Duplicate demo consumer stopped'));
           await channel.cancel(consumer.consumerTag);
         }
       } finally {
