@@ -34,6 +34,7 @@
     "demo:duplicate": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-duplicate.js'",
     "demo:outbox": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-outbox.js'",
     "demo:crash-write": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-crash-write.js'",
+    "demo:crash-relay": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-crash-relay.js'",
     "report": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/report.js",
     "verify:provider": "NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest test/contract/provider.pact.spec.ts",
     "rabbitmq:bootstrap": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/modules/messaging/rabbitmq/bootstrap.js",
