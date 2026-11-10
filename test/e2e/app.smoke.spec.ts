@@ -230,9 +230,9 @@ describe('Application E2E', () => {
     ]);
 
     const totalCents = keyboard.priceCents + mouse.priceCents * 2;
+    const idempotencyKey = 'e2e-create-read-order';
     const requestBody = {
       customer_id: customer.id,
-      idempotency_key: 'e2e-create-read-order',
       items: [
         { product_id: mouse.id, quantity: 2 },
         { product_id: keyboard.id, quantity: 1 },
@@ -267,6 +267,7 @@ describe('Application E2E', () => {
 
     const createResponse = await request(context.app.getHttpServer())
       .post('/orders')
+      .set('Idempotency-Key', idempotencyKey)
       .send(requestBody)
       .expect(201);
 
@@ -310,6 +311,7 @@ describe('Application E2E', () => {
 
     const retryResponse = await request(context.app.getHttpServer())
       .post('/orders')
+      .set('Idempotency-Key', idempotencyKey)
       .send(requestBody)
       .expect(201);
 
@@ -342,7 +344,7 @@ describe('Application E2E', () => {
     const orderCount = await context.dataSource.getRepository(Order).count({
       where: {
         customer: { id: customer.id },
-        idempotencyKey: requestBody.idempotency_key,
+        idempotencyKey,
       },
     });
 
