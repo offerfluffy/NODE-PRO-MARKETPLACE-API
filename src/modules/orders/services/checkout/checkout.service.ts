@@ -16,10 +16,14 @@ import {
 import type { CheckoutInput, CheckoutResult } from './checkout.types.js';
 import { createOrderPlacedEvent } from '../../events/order-placed.event.js';
 import { enqueueOrderPlacedEvent } from '../../events/enqueue-order-placed-event.js';
+import { CheckoutTransactionHook } from './checkout-transaction.hook.js';
 
 @Injectable()
 export class CheckoutService {
-  constructor(private readonly dataSource: DataSource) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly transactionHook: CheckoutTransactionHook,
+  ) {}
 
   async checkout({
     customerId,
@@ -68,6 +72,7 @@ export class CheckoutService {
 
         const event = createOrderPlacedEvent(checkout);
         await enqueueOrderPlacedEvent(manager, event);
+        await this.transactionHook.afterOutboxEnqueued(event);
 
         return checkout;
       });
