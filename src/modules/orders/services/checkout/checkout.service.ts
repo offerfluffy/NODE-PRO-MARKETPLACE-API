@@ -14,6 +14,8 @@ import {
   reserveInventory,
 } from './checkout-persistence.js';
 import type { CheckoutInput, CheckoutResult } from './checkout.types.js';
+import { createOrderPlacedEvent } from '../../events/order-placed.event.js';
+import { enqueueOrderPlacedEvent } from '../../events/enqueue-order-placed-event.js';
 
 @Injectable()
 export class CheckoutService {
@@ -55,7 +57,7 @@ export class CheckoutService {
 
         await createOrderItems(manager, orderId, pricedCheckout.items);
 
-        return {
+        const checkout: CheckoutResult = {
           orderId,
           customerId,
           status: OrderStatus.PAID,
@@ -63,6 +65,11 @@ export class CheckoutService {
           createdAt,
           items: pricedCheckout.items,
         };
+
+        const event = createOrderPlacedEvent(checkout);
+        await enqueueOrderPlacedEvent(manager, event);
+
+        return checkout;
       });
     } catch (error: unknown) {
       if (!isIdempotencyUniqueViolation(error)) {
