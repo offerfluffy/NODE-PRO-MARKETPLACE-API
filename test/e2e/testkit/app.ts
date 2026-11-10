@@ -5,6 +5,8 @@ import {
   stopTestDatabase,
   type TestDatabase,
 } from '../../integration/testkit/postgres.js';
+import { OrderPlacedPublisher } from '../../../src/modules/messaging/rabbitmq/order-placed.publisher.js';
+import { OrderPlacedConsumer } from '../../../src/modules/messaging/rabbitmq/order-placed.consumer.js';
 
 export type TestApplication = TestDatabase & {
   app: INestApplication;
@@ -16,6 +18,7 @@ export async function startTestApplication(): Promise<TestApplication> {
   process.env.NODE_ENV = 'test';
   process.env.PORT = '3000';
   process.env.DB_URL = database.container.getConnectionUri();
+  process.env.BROKER_URL = 'amqp://app:app@127.0.0.1:21140';
   process.env.LOG_LEVEL = 'error';
   process.env.TIMEOUT_MS = '5000';
   delete process.env.DB_PASSWORD_FILE;
@@ -26,7 +29,14 @@ export async function startTestApplication(): Promise<TestApplication> {
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
-    }).compile();
+    })
+      .overrideProvider(OrderPlacedPublisher)
+      .useValue({
+        publish: async () => undefined,
+      })
+      .overrideProvider(OrderPlacedConsumer)
+      .useValue({})
+      .compile();
 
     const app = moduleRef.createNestApplication();
     await app.init();

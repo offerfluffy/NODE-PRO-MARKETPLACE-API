@@ -5,6 +5,7 @@ export const envSchema = z
     PORT: z.coerce.number().int().min(1).max(65535),
     DB_URL: z.url({ protocol: /^postgres$/ }),
     DB_PASSWORD_FILE: z.string().trim().min(1).optional(),
+    BROKER_URL: z.url({ protocol: /^amqps?$/ }),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
   })

@@ -11,7 +11,6 @@ import {
   createOrderItems,
   createPaidOrder,
   debitCustomer,
-  enqueueOrderPostProcessing,
   reserveInventory,
 } from './checkout-persistence.js';
 import type { CheckoutInput, CheckoutResult } from './checkout.types.js';
@@ -47,7 +46,7 @@ export class CheckoutService {
           pricedCheckout.totalAmountCents,
         );
 
-        const orderId = await createPaidOrder(
+        const { id: orderId, createdAt } = await createPaidOrder(
           manager,
           customerId,
           idempotencyKey,
@@ -55,13 +54,13 @@ export class CheckoutService {
         );
 
         await createOrderItems(manager, orderId, pricedCheckout.items);
-        await enqueueOrderPostProcessing(manager, orderId, customerId);
 
         return {
           orderId,
           customerId,
           status: OrderStatus.PAID,
           totalAmountCents: pricedCheckout.totalAmountCents,
+          createdAt,
           items: pricedCheckout.items,
         };
       });

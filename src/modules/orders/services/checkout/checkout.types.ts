@@ -15,6 +15,7 @@ export type CheckoutResult = {
   customerId: string;
   status: OrderStatus;
   totalAmountCents: number;
+  createdAt: Date;
   items: PricedCheckoutItem[];
 };
 
