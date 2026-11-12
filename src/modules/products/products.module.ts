@@ -4,9 +4,11 @@ import { ProductCardRepository } from '../database/repositories/product-card.rep
 import { DataSource } from 'typeorm';
 import { ProductCardService } from './product-card.service.js';
 import { ProductsController } from './products.controller.js';
+import { RedisModule } from '../redis/redis.module.js';
+import { ProductCardCacheService } from './product-card-cache.service.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, RedisModule],
   providers: [
     {
       provide: ProductCardRepository,
@@ -14,6 +16,7 @@ import { ProductsController } from './products.controller.js';
       useFactory: (dataSource: DataSource) =>
         new ProductCardRepository(dataSource),
     },
+    ProductCardCacheService,
     ProductCardService,
   ],
   controllers: [ProductsController],
