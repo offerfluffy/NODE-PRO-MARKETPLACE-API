@@ -6,9 +6,10 @@ import { ProductCardService } from './product-card.service.js';
 import { ProductsController } from './products.controller.js';
 import { RedisModule } from '../redis/redis.module.js';
 import { ProductCardCacheService } from './product-card-cache.service.js';
+import { RateLimitModule } from '../rate-limit/rate-limit.module.js';
 
 @Module({
-  imports: [DatabaseModule, RedisModule],
+  imports: [DatabaseModule, RedisModule, RateLimitModule],
   providers: [
     {
       provide: ProductCardRepository,
