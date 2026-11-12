@@ -23,7 +23,7 @@ import { RedisLifecycleService } from './redis-lifecycle.service.js';
         return new Redis(url);
       },
     },
-    RedisLifecycleService
+    RedisLifecycleService,
   ],
   exports: [CACHE_REDIS, DURABLE_REDIS],
 })
