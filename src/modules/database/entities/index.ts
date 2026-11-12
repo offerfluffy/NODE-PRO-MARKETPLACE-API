@@ -3,6 +3,8 @@ import { Job } from './job.entity.js';
 import { Order } from './order.entity.js';
 import { OrderItem } from './orderItem.entity.js';
 import { OrderStatusEvent } from './orderStatusEvent.entity.js';
+import { OutboxEvent } from './outboxEvent.entity.js';
+import { ProcessedMessage } from './processedMessage.entity.js';
 import { Product } from './product.entity.js';
 import { User } from './user.entity.js';
 
@@ -14,4 +16,6 @@ export const databaseEntities = [
   OrderItem,
   OrderStatusEvent,
   Job,
+  OutboxEvent,
+  ProcessedMessage,
 ];

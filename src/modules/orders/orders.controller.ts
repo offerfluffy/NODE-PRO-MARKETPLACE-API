@@ -13,10 +13,12 @@ import {
   Headers,
   UnauthorizedException,
   type MessageEvent,
+  BadRequestException,
 } from '@nestjs/common';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import {
   createOrderSchema,
+  idempotencyKeySchema,
   postgresBigintIdSchema,
   type CreateOrderDto,
 } from './dto/create-order.dto.js';
@@ -49,11 +51,30 @@ export class OrdersController {
 
   @Post()
   async create(
+    @Headers('idempotency-key')
+    idempotencyKeyHeader: string | undefined,
     @Body(new ZodValidationPipe(createOrderSchema))
     body: CreateOrderDto,
   ): Promise<OrderResponseDto> {
+    const result = idempotencyKeySchema.safeParse(idempotencyKeyHeader);
+
+    if (!result.success) {
+      throw new BadRequestException({
+        message: 'Validation failed',
+        issues: [
+          {
+            path: 'Idempotency-Key',
+            message: 'A non-empty Idempotency-Key header is required',
+          },
+        ],
+      });
+    }
+
     try {
-      return await this.ordersService.create(body);
+      return await this.ordersService.create({
+        ...body,
+        idempotencyKey: result.data,
+      });
     } catch (error: unknown) {
       throw toCheckoutHttpException(error);
     }

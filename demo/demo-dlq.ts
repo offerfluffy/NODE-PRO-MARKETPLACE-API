@@ -41,9 +41,7 @@ function createPoisonPayload(): unknown {
 }
 
 async function cleanDemoState(channel: Channel): Promise<void> {
-  const workQueue = await channel.checkQueue(
-    ORDER_PLACED_TOPOLOGY.queue,
-  );
+  const workQueue = await channel.checkQueue(ORDER_PLACED_TOPOLOGY.queue);
 
   if (workQueue.consumerCount !== 0) {
     throw new Error(
@@ -52,18 +50,13 @@ async function cleanDemoState(channel: Channel): Promise<void> {
   }
 
   await channel.purgeQueue(ORDER_PLACED_TOPOLOGY.queue);
-  await channel.purgeQueue(
-    ORDER_PLACED_TOPOLOGY.deadLetterQueue,
-  );
-  await dataSource.query(
-    'DELETE FROM jobs WHERE event_id = $1',
-    [POISON_EVENT_ID],
-  );
+  await channel.purgeQueue(ORDER_PLACED_TOPOLOGY.deadLetterQueue);
+  await dataSource.query('DELETE FROM jobs WHERE event_id = $1', [
+    POISON_EVENT_ID,
+  ]);
 }
 
-async function startPoisonConsumer(
-  channel: Channel,
-): Promise<PoisonConsumer> {
+async function startPoisonConsumer(channel: Channel): Promise<PoisonConsumer> {
   const stats = { rejected: 0 };
   let resolveCompleted!: () => void;
   let rejectCompleted!: (error: unknown) => void;
@@ -128,9 +121,7 @@ function handlePoisonMessage(
   let event: OrderPlacedEvent;
 
   try {
-    const body: unknown = JSON.parse(
-      message.content.toString('utf8'),
-    );
+    const body: unknown = JSON.parse(message.content.toString('utf8'));
     event = orderPlacedEventSchema.parse(body);
   } catch {
     channel.reject(message, false);
@@ -147,16 +138,13 @@ function handlePoisonMessage(
     .catch(fail);
 }
 
-async function getDlqMessage(
-  channel: Channel,
-): Promise<GetMessage> {
+async function getDlqMessage(channel: Channel): Promise<GetMessage> {
   const deadline = Date.now() + TIMEOUT_MS;
 
   while (Date.now() < deadline) {
-    const message = await channel.get(
-      ORDER_PLACED_TOPOLOGY.deadLetterQueue,
-      { noAck: false },
-    );
+    const message = await channel.get(ORDER_PLACED_TOPOLOGY.deadLetterQueue, {
+      noAck: false,
+    });
 
     if (message) {
       return message;
@@ -206,9 +194,7 @@ async function waitForQueueDepth(
     await delay(50);
   }
 
-  throw new Error(
-    `Timed out waiting for ${queue} depth=${expected}`,
-  );
+  throw new Error(`Timed out waiting for ${queue} depth=${expected}`);
 }
 
 function delay(milliseconds: number): Promise<void> {
@@ -244,8 +230,7 @@ async function main(): Promise<void> {
         void consumer.completed.catch(() => undefined);
 
         try {
-          const publishChannel =
-            await connection.createConfirmChannel();
+          const publishChannel = await connection.createConfirmChannel();
 
           try {
             const payload = createPoisonPayload();
@@ -281,9 +266,7 @@ async function main(): Promise<void> {
             const deadLetterQueue = await channel.checkQueue(
               ORDER_PLACED_TOPOLOGY.deadLetterQueue,
             );
-            const effectRows = await dataSource.query<
-              Array<{ count: number }>
-            >(
+            const effectRows = await dataSource.query<Array<{ count: number }>>(
               `
                 SELECT count(*)::integer AS count
                 FROM jobs
@@ -313,9 +296,7 @@ async function main(): Promise<void> {
             await publishChannel.close();
           }
         } finally {
-          consumer.stopWaiting(
-            new Error('DLQ demo consumer stopped'),
-          );
+          consumer.stopWaiting(new Error('DLQ demo consumer stopped'));
           await channel.cancel(consumer.consumerTag);
         }
       } finally {

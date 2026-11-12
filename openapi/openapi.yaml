@@ -153,6 +153,7 @@ paths:
             a duplicate order.
           schema:
             type: string
+            minLength: 1
       requestBody:
         required: true
         content:
@@ -337,8 +338,11 @@ components:
     CreateOrderRequest:
       type: object
       required:
+        - customer_id
         - items
       properties:
+        customer_id:
+          type: string
         items:
           type: array
           minItems: 1

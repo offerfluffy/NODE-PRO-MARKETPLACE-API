@@ -40,22 +40,7 @@ export class OrderPlacedPublisher implements OnModuleInit, OnModuleDestroy {
       throw new Error('RabbitMQ publisher is not initialized');
     }
 
-    const payload = Buffer.from(JSON.stringify(event), 'utf8');
-
-    channel.publish(
-      ORDER_PLACED_TOPOLOGY.exchange,
-      ORDER_PLACED_TOPOLOGY.routingKey,
-      payload,
-      {
-        persistent: true,
-        contentType: 'application/json',
-        contentEncoding: 'utf-8',
-        messageId: event.eventId,
-        type: event.type,
-      },
-    );
-
-    await channel.waitForConfirms();
+    await publishOrderPlaced(channel, event);
   }
 
   async onModuleDestroy(): Promise<void> {
@@ -71,4 +56,26 @@ export class OrderPlacedPublisher implements OnModuleInit, OnModuleDestroy {
       await connection?.close();
     }
   }
+}
+
+export async function publishOrderPlaced(
+  channel: ConfirmChannel,
+  event: OrderPlacedEvent,
+): Promise<void> {
+  const payload = Buffer.from(JSON.stringify(event), 'utf8');
+
+  channel.publish(
+    ORDER_PLACED_TOPOLOGY.exchange,
+    ORDER_PLACED_TOPOLOGY.routingKey,
+    payload,
+    {
+      persistent: true,
+      contentType: 'application/json',
+      contentEncoding: 'utf-8',
+      messageId: event.eventId,
+      type: event.type,
+    },
+  );
+
+  await channel.waitForConfirms();
 }

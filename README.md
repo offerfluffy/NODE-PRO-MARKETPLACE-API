@@ -57,12 +57,12 @@ Deploy: Docker Compose для локальної розробки. API буде 
 
 ## 4. Trade-offs: WebSocket vs SSE
 
-| Criterion                 | WebSocket                                      | SSE                                                   |
-| ------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
-| Channel direction         | Bidirectional: client and server can send data | One-way: server sends events to the client            |
-| Reconnection and replay   | Must be implemented explicitly                 | Built-in reconnect; `Last-Event-ID` supports replay   |
-| Infrastructure            | Needs upgrade/proxy support and a cluster adapter | Uses ordinary HTTP streaming and works through most proxies |
-| Cost per event            | Compact frames after the initial handshake     | Adds text framing and HTTP connection overhead        |
+| Criterion               | WebSocket                                         | SSE                                                         |
+| ----------------------- | ------------------------------------------------- | ----------------------------------------------------------- |
+| Channel direction       | Bidirectional: client and server can send data    | One-way: server sends events to the client                  |
+| Reconnection and replay | Must be implemented explicitly                    | Built-in reconnect; `Last-Event-ID` supports replay         |
+| Infrastructure          | Needs upgrade/proxy support and a cluster adapter | Uses ordinary HTTP streaming and works through most proxies |
+| Cost per event          | Compact frames after the initial handshake        | Adds text framing and HTTP connection overhead              |
 
 For order-status notifications, I would keep SSE in production because the
 data flow is one-way and reconnect/replay behavior is part of the protocol.
@@ -783,8 +783,102 @@ This is **at-least-once delivery**, not exactly-once delivery. An acknowledgemen
 can be lost after the effect commits, so RabbitMQ may deliver the event again.
 The stable event ID and idempotent database insert produce an exactly-once
 result even when delivery is repeated. A separate gap still exists between the
-order transaction committing and the publisher sending the event; a
-transactional outbox in HW #22 is required to close that dual-write gap.
+order transaction committing and the publisher sending the event. The
+transactional outbox described below closes that dual-write gap.
+
+## 14. Outbox та ідемпотентність
+
+Checkout no longer publishes directly to RabbitMQ. It writes the order, order
+items and an explicit `order.placed` event contract to PostgreSQL in one
+transaction. Either the business state and its outbox row commit together, or
+both roll back. The event payload is constructed explicitly instead of
+serializing a TypeORM entity, so database column changes do not silently become
+breaking changes for consumers.
+
+The polling relay uses this sequence:
+
+```text
+SELECT pending rows ORDER BY created_at, id
+FOR UPDATE SKIP LOCKED
+→ publish and wait for RabbitMQ confirms
+→ UPDATE published_at and attempts
+→ COMMIT
+```
+
+`SKIP LOCKED` lets multiple relay processes claim different rows without
+waiting for each other. The `ORDER BY` controls selection order only; it does
+not guarantee global delivery order once several relays run concurrently. If
+strict order becomes a domain requirement, it must be enforced per
+`aggregate_id` through broker partitioning or an equivalent per-aggregate
+serialization strategy. The relay searches by `published_at IS NULL`, not by
+an increasing identity cursor: identity values are allocated before commit, so
+a cursor can skip a lower ID that becomes visible later.
+
+The consumer implements two layers of idempotency in one PostgreSQL
+transaction. The inbox row uses the composite key `(message_id, consumer)` and
+`ON CONFLICT DO NOTHING`; the `order_post_processing` job also has the natural
+unique key `event_id`. The inbox marker and effect commit together. At the HTTP
+edge, repeated checkout requests with the same `Idempotency-Key` return the
+original order instead of creating a second order or event.
+
+The three demos reset their own fixture rows and RabbitMQ queues, validate the
+persisted counts, and exit non-zero if an invariant fails. They also refuse to
+run while another consumer owns the work queue. Recorded local runs:
+
+```text
+$ npm run demo:outbox
+requests=2
+orders=1
+outbox=1
+published=1
+deliveries=1
+effect=1
+processed=1
+```
+
+```text
+$ npm run demo:crash-write
+write-failed=1
+orders=0
+outbox=0
+published=0
+deliveries=0
+effect=0
+```
+
+`demo:crash-write` injects an exception immediately after the outbox insert in
+the real checkout transaction. The transaction rolls back the order and outbox
+row together, so nothing reaches RabbitMQ.
+
+```text
+$ npm run demo:crash-relay
+published=2
+deliveries=2
+applied=1
+effect=1
+processed=1
+```
+
+`demo:crash-relay` uses a real child relay process. After RabbitMQ confirms the
+first publish, the parent sends `SIGKILL` before the relay can update
+`published_at`. PostgreSQL rolls back the interrupted relay transaction, so a
+restarted relay sees the row as pending and publishes it again. The consumer
+receives the event twice, but the inbox and natural effect key allow only one
+application.
+
+The relay order cannot be changed to `UPDATE published_at` before `publish`.
+If the process or broker fails after that update, the event is marked complete
+without ever leaving PostgreSQL and no retry can find it. Publishing first can
+produce a duplicate when the process dies or the broker acknowledgement is
+lost, but that failure is recoverable through the idempotent consumer. The
+choice is therefore recoverable duplication instead of permanent loss.
+
+Published outbox rows are retained for seven days for diagnostics, then a
+scheduled maintenance job should delete only rows with
+`published_at < now() - interval '7 days'` in small batches. Unpublished rows
+must never be removed by retention. `processed_messages` needs a retention
+window at least as long as the maximum broker redelivery/replay window; until
+that operational window is defined, its rows are retained.
 
 ## Grading
 
@@ -824,6 +918,9 @@ npm run rabbitmq:bootstrap
 npm run demo:publish
 npm run demo:dlq
 npm run demo:duplicate
+npm run demo:outbox
+npm run demo:crash-write
+npm run demo:crash-relay
 npm run demo:nplus1
 npm run report
 npm run demo:race
