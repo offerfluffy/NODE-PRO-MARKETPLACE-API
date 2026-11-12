@@ -118,6 +118,9 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
 | `PORT`             | Так         | `3000`                                     | Порт HTTP-сервера: ціле число від 1 до 65535.                                                              |
 | `DB_URL`           | Так         | `postgres://app_user@127.0.0.1:21120/shop` | Адреса PgBouncer із протоколом `postgres:`. Пароль зберігається в окремому файлі.                          |
 | `DB_PASSWORD_FILE` | Так         | `secrets/db_password`                      | Шлях до непорожнього файла з паролем користувача БД. Відносний шлях рахується від робочої теки застосунку. |
+| `BROKER_URL`       | Так         | `amqp://app:app@127.0.0.1:21140`           | Адреса RabbitMQ для інтеграційних подій.                                                                   |
+| `REDIS_URL`        | Так         | `redis://127.0.0.1:21150`                  | Окремий Redis для витіснюваного кешу карток товарів.                                                       |
+| `REDIS_QUEUE_URL`  | Так         | `redis://127.0.0.1:21160`                  | Redis із `noeviction` для BullMQ, сесій і спільного rate limit.                                            |
 | `LOG_LEVEL`        | Ні          | Дефолт: `info`                             | Допустимі значення: `debug`, `info`, `warn`, `error`.                                                      |
 | `TIMEOUT_MS`       | Ні          | Дефолт: `5000`                             | Налаштування таймауту в мілісекундах: додатне ціле число.                                                  |
 
@@ -470,11 +473,13 @@ transaction boundaries. `RESTART IDENTITY` resets generated IDs, while
 npm run test:e2e
 ```
 
-E2E tests build the full Nest application with `AppModule` and no replaced
-providers. The application receives its database URL from a PostgreSQL
-Testcontainer. The suite covers a missing-order `404`, reading a seeded order,
-and the complete multi-item checkout flow: create, read back, inventory and
-balance changes, post-processing job creation, and idempotent retry.
+E2E tests build the Nest application with `AppModule` and receive the database
+URL from a PostgreSQL Testcontainer. External RabbitMQ, Redis and BullMQ
+providers are replaced with deterministic test doubles; database repositories
+and checkout still use the real PostgreSQL container. The suite covers a
+missing-order `404`, reading a seeded order, and the complete multi-item
+checkout flow: create, read back, inventory and balance changes,
+post-processing job creation, and idempotent retry.
 
 ### Consumer contract and local provider verification
 
@@ -880,6 +885,159 @@ must never be removed by retention. `processed_messages` needs a retention
 window at least as long as the maximum broker redelivery/replay window; until
 that operational window is defined, its rows are retained.
 
+## 15. Redis: кеш, сесії, ліміти, черга
+
+### Два Redis-інстанси
+
+Кеш і BullMQ мають несумісні вимоги до пам'яті. `redis-cache` слухає host-порт
+`21150`, має ліміт `64mb` і політику `allkeys-lru`: коли пам'ять заповнюється,
+Redis може витіснити давно не використаний кешований ключ. `redis-queue`
+слухає `21160` і використовує `noeviction`, бо довільне видалення внутрішніх
+ключів BullMQ пошкодило б стан черги. Ці політики діють на весь Redis-процес,
+тому `SELECT 0`/`SELECT 1` не дають потрібної ізоляції — потрібні два окремі
+контейнери.
+
+`noeviction` саме по собі не переживає рестарт. Для чергового Redis увімкнено
+AOF з `appendfsync everysec`, а `/data` змонтовано в named volume. Це дає
+практичний компроміс між швидкістю та персистентністю: при аварії можна втратити
+приблизно останню секунду записів, але контейнерний рестарт не починає з
+порожнього Redis.
+
+### Cache-aside і захист від stampede
+
+`GET /products/:id` повертає реальну важку проєкцію: товар, продавця, залишок і
+агреговану кількість проданих одиниць. У Redis зберігається готовий DTO, а не
+TypeORM entity. На промаху сервіс читає PostgreSQL, перевіряє результат через
+Zod і записує JSON із TTL `300..360` секунд. Випадковий jitter не дає ключам,
+прогрітим одним циклом, протухнути одночасно.
+
+Для холодного популярного ключа використано single-flight:
+
+```text
+GET cache
+→ SET lock:<key> <uuid> NX PX 5000
+→ лідер повторно перевіряє кеш і читає PostgreSQL
+→ waiters коротко опитують кеш
+→ Lua compare-and-delete знімає тільки лок із тим самим UUID
+```
+
+Повторна перевірка після захоплення лока потрібна, бо інший лідер міг устигнути
+заповнити кеш між першим `GET` і `SET NX`. Після успішного checkout ключі
+зачеплених товарів інвалідуються best-effort уже після commit; TTL залишається
+обов'язковою страховкою. Помилки читання або запису кеша перетворюються на
+промах і запит продовжується через PostgreSQL.
+
+Якщо stampede-лок зламається, протухне занадто рано або waiter не дочекається,
+кілька запитів можуть одночасно виконати однаковий `SELECT`. Тут це прийнятно:
+ми платимо за зайве читання, але не псуємо бізнес-стан. Лок є оптимізацією, а
+не гарантією коректності checkout.
+
+### Сесії з rolling TTL
+
+Сесійний стан зберігається в `redis-queue`, а не в кеш-інстансі. Інакше
+`allkeys-lru` міг би витіснити активну сесію до завершення TTL і випадково
+розлогінити користувача. Стан живе поза процесом API, тому переживає рестарт
+application client; AOF і volume додатково захищають від рестарту Redis-
+контейнера.
+
+Створення використовує `SET ... EX 1800`, а кожне читання — атомарний
+`GETEX ... EX 1800`. Активність користувача одночасно читає сесію й повертає
+TTL до 30 хвилин, без проміжку між окремими `GET` та `EXPIRE`.
+
+### Спільний sliding-window rate limit
+
+Картка товару захищена спільним лімітом `5` запитів за `10` секунд. Вибрано
+sliding window, щоб уникнути граничного сплеску fixed window: п'ять запитів
+перед межею і ще п'ять одразу після неї не повинні перетворювати ліміт `5` на
+фактичні `10` за короткий інтервал.
+
+Мітки запитів зберігаються в Redis ZSET. Lua-скрипт атомарно видаляє старі
+мітки, рахує активні й додає нову. Тому два pod-и не можуть одночасно побачити
+останнє вільне місце й обидва пропустити запит. Перевищення повертає HTTP `429`
+і `Retry-After: 10`.
+
+### RabbitMQ і BullMQ
+
+RabbitMQ переносить інтеграційну подію між частинами системи та відповідає за
+routing, ACK/requeue і DLQ. BullMQ виконує локальну фонову роботу цього сервісу:
+retry з exponential backoff і jitter, дедуплікацію за стабільним `jobId`,
+retention завершених задач і scheduling.
+
+Повний ланцюжок:
+
+```text
+checkout transaction
+→ PostgreSQL outbox
+→ relay
+→ RabbitMQ order.placed
+→ idempotent database effect
+→ BullMQ order post-processing
+→ worker
+```
+
+RabbitMQ ACK надсилається лише після commit database effect і успішного
+BullMQ `add`. Якщо enqueue не вдався, повідомлення requeue-иться; повторний
+database effect повертає `skipped`, а стабільний colon-free `jobId`
+`order-placed-<orderId>` не створює дубль. Задача має три спроби, exponential
+backoff із jitter і не видаляється одразу після completion. Worker використовує
+окреме ioredis-з'єднання з `maxRetriesPerRequest: null` та ідемпотентно переводить
+рядок `jobs` із `pending` у `done`.
+
+### Виміряні демонстрації
+
+Усі чотири демо самоочисні та друкують машинозчитувані рядки `key=number`.
+Зафіксовані локальні прогони:
+
+```text
+$ npm run demo:cache
+cache-lru=1
+cache-maxmemory=1
+warmed=50
+ttl-distinct=35
+concurrent=20
+db-calls=1
+db-calls-warm=0
+```
+
+`db-calls` рахує реальні SQL-запити через TypeORM logger. Після видалення одного
+ключа 20 конкурентних читань дали один SQL-запит; наступні 100 теплих читань —
+жодного.
+
+```text
+$ npm run demo:session
+requests=3
+sessions=1
+in-redis=1
+ttl-renewed=1
+survived-restart=1
+```
+
+```text
+$ npm run demo:ratelimit
+instances=2
+limit=5
+requests=8
+allowed=5
+blocked=3
+status=429
+retry-after=1
+```
+
+```text
+$ npm run demo:queue
+queue-noeviction=1
+attempts=3
+completed=1
+added=2
+queued=1
+schedulers=1
+scheduled-runs=2
+```
+
+`demo:queue` двічі викликає актуальний для BullMQ 6
+`upsertJobScheduler` з одним scheduler ID. У Redis залишається один scheduler,
+який виконав щонайменше дві заплановані задачі.
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
@@ -898,6 +1056,8 @@ export DB_PASSWORD_FILE=secrets/db_password
 export SKIP_VAULT=1
 export PORT=3000
 export BROKER_URL=amqp://app:app@127.0.0.1:21140
+export REDIS_URL=redis://127.0.0.1:21150
+export REDIS_QUEUE_URL=redis://127.0.0.1:21160
 
 export DB_HOST=127.0.0.1
 export DB_PORT=21110
@@ -926,6 +1086,10 @@ npm run report
 npm run demo:race
 npm run demo:workers
 npm run demo:retry
+npm run demo:cache
+npm run demo:session
+npm run demo:ratelimit
+npm run demo:queue
 
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
