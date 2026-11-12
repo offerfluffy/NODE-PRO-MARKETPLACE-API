@@ -5,6 +5,7 @@ import { validate } from './config/env.schema.js';
 import { DatabaseModule } from './modules/database/database.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
 import { RedisModule } from './modules/redis/redis.module.js';
+import { ProductsModule } from './modules/products/products.module.js';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { RedisModule } from './modules/redis/redis.module.js';
     RedisModule,
     DatabaseModule,
     OrdersModule,
+    ProductsModule,
   ],
   controllers: [AppController],
   providers: [],

@@ -3,6 +3,7 @@ import { DatabaseModule } from '../database/database.module.js';
 import { ProductCardRepository } from '../database/repositories/product-card.repository.js';
 import { DataSource } from 'typeorm';
 import { ProductCardService } from './product-card.service.js';
+import { ProductsController } from './products.controller.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -15,5 +16,6 @@ import { ProductCardService } from './product-card.service.js';
     },
     ProductCardService,
   ],
+  controllers: [ProductsController],
 })
 export class ProductsModule {}
