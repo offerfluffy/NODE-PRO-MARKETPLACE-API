@@ -11,9 +11,10 @@ import {
 import { OrderEventsService } from './realtime/order-events.service.js';
 import { OrdersGateway } from './realtime/orders.gateway.js';
 import { MessagingModule } from '../messaging/messaging.module.js';
+import { ProductsModule } from '../products/products.module.js';
 
 @Module({
-  imports: [DatabaseModule, MessagingModule],
+  imports: [DatabaseModule, MessagingModule, ProductsModule],
   controllers: [OrdersController],
   providers: [
     {
@@ -27,6 +28,5 @@ import { MessagingModule } from '../messaging/messaging.module.js';
     OrderEventsService,
     OrdersGateway,
   ],
-  exports: [],
 })
 export class OrdersModule {}
