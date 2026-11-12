@@ -37,4 +37,16 @@ export class SessionStoreService {
 
     return sessionId;
   }
+
+  async read(sessionId: string): Promise<SessionData | null> {
+    const record = await this.durableRedis.getex(
+      this.key(sessionId),
+      'EX',
+      SESSION_TTL_SECONDS,
+    );
+
+    if (record === null) return null;
+
+    return sessionDataSchema.parse(JSON.parse(record));
+  }
 }
