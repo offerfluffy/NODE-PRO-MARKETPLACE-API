@@ -28,6 +28,7 @@
     "demo:race": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/demo-race.js",
     "demo:workers": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/demo-workers.js",
     "demo:retry": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/demo-retry.js",
+    "demo:cache": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-cache.js'",
     "demo:ratelimit": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-ratelimit.js'",
     "demo:queue": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-queue.js'",
     "demo:session": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-session.js'",
