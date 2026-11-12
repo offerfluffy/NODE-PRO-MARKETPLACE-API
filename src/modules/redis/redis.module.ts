@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../config/env.schema.js';
 import { CACHE_REDIS, DURABLE_REDIS } from './redis.tokens.js';
 import { Redis } from 'ioredis';
+import { RedisLifecycleService } from './redis-lifecycle.service.js';
 
 @Module({
   providers: [
@@ -22,6 +23,7 @@ import { Redis } from 'ioredis';
         return new Redis(url);
       },
     },
+    RedisLifecycleService
   ],
   exports: [CACHE_REDIS, DURABLE_REDIS],
 })
