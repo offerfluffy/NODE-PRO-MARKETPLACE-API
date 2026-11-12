@@ -20,5 +20,6 @@ import { ProductCardCacheService } from './product-card-cache.service.js';
     ProductCardService,
   ],
   controllers: [ProductsController],
+  exports: [ProductCardCacheService],
 })
 export class ProductsModule {}
