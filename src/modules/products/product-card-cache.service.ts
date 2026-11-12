@@ -70,6 +70,18 @@ export class ProductCardCacheService {
     }
   }
 
+  async invalidate(id: string): Promise<void> {
+    try {
+      await this.cacheRedis.del(this.key(id));
+    } catch (error) {
+      this.logger.warn(
+        `Product-card cache invalidate failed for ${id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   async acquireLock(id: string): Promise<string | null> {
     const token = randomUUID();
 
