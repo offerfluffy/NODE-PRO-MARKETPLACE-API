@@ -49,4 +49,8 @@ export class SessionStoreService {
 
     return sessionDataSchema.parse(JSON.parse(record));
   }
+
+  async delete(sessionId: string): Promise<void> {
+    await this.durableRedis.del(this.key(sessionId));
+  }
 }
