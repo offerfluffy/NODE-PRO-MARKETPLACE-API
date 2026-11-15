@@ -25,6 +25,10 @@ export async function startTestApplication(): Promise<TestApplication> {
   process.env.PORT = '3000';
   process.env.DB_URL = database.container.getConnectionUri();
   process.env.BROKER_URL = 'amqp://app:app@127.0.0.1:21140';
+  process.env.JWT_PRIVATE_KEY = 'test-private-key';
+  process.env.JWT_PUBLIC_KEY = 'test-public-key';
+  process.env.JWT_KID = 'test-key';
+  process.env.REFRESH_TOKEN_PEPPER = 'test-refresh-token-pepper';
   process.env.REDIS_URL = 'redis://127.0.0.1:1';
   process.env.REDIS_QUEUE_URL = 'redis://127.0.0.1:1';
   process.env.LOG_LEVEL = 'error';

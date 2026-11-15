@@ -2,10 +2,17 @@ import { z } from 'zod';
 
 export const envSchema = z
   .object({
+    NODE_ENV: z
+      .enum(['development', 'test', 'production'])
+      .default('development'),
     PORT: z.coerce.number().int().min(1).max(65535),
     DB_URL: z.url({ protocol: /^postgres$/ }),
     DB_PASSWORD_FILE: z.string().trim().min(1).optional(),
     BROKER_URL: z.url({ protocol: /^amqps?$/ }),
+    JWT_PRIVATE_KEY: z.string().trim().min(1),
+    JWT_PUBLIC_KEY: z.string().trim().min(1),
+    JWT_KID: z.string().trim().min(1),
+    REFRESH_TOKEN_PEPPER: z.string().trim().min(1),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
     REDIS_URL: z.url({ protocol: /^rediss?$/ }),
