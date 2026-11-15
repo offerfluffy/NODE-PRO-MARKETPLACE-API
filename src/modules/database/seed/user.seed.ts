@@ -6,59 +6,62 @@ type UserSeed = Pick<
   'email' | 'passwordHash' | 'fullName' | 'role' | 'balanceCents'
 >;
 
+const DEMO_PASSWORD_HASH =
+  'scrypt$16384$8$1$vGS4AX/975kOh6P3Dbmyyg==$UXZftOZb6EjwSF+pbS/fSbAcQwgPllZan26gT12Afmg=';
+
 export const USER_SEEDS: UserSeed[] = [
   {
     email: 'seller.one@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Seller One',
     role: UserRole.SELLER,
     balanceCents: 0,
   },
   {
     email: 'seller.two@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Seller Two',
     role: UserRole.SELLER,
     balanceCents: 0,
   },
   {
     email: 'customer.one@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Customer One',
     role: UserRole.CUSTOMER,
     balanceCents: 1_000_000,
   },
   {
     email: 'customer.two@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Customer Two',
     role: UserRole.CUSTOMER,
     balanceCents: 1_000_000,
   },
   {
     email: 'customer.three@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Customer Three',
     role: UserRole.CUSTOMER,
     balanceCents: 1_000_000,
   },
   {
     email: 'customer.four@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Customer Four',
     role: UserRole.CUSTOMER,
     balanceCents: 1_000_000,
   },
   {
     email: 'customer.five@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Customer Five',
     role: UserRole.CUSTOMER,
     balanceCents: 1_000_000,
   },
   {
     email: 'admin@example.com',
-    passwordHash: 'seed-only-password-hash',
+    passwordHash: DEMO_PASSWORD_HASH,
     fullName: 'Admin User',
     role: UserRole.ADMIN,
     balanceCents: 0,
