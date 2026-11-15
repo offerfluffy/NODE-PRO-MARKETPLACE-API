@@ -6,6 +6,7 @@ import { OrderStatusEvent } from './orderStatusEvent.entity.js';
 import { OutboxEvent } from './outboxEvent.entity.js';
 import { ProcessedMessage } from './processedMessage.entity.js';
 import { Product } from './product.entity.js';
+import { RefreshToken } from './refreshToken.entity.js';
 import { User } from './user.entity.js';
 
 export const databaseEntities = [
@@ -18,4 +19,5 @@ export const databaseEntities = [
   Job,
   OutboxEvent,
   ProcessedMessage,
+  RefreshToken,
 ];
