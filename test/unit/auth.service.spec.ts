@@ -1,5 +1,10 @@
 import { Test } from '@nestjs/testing';
-import { UserRole } from '../../src/modules/database/entities/user.entity.js';
+import { jest } from '@jest/globals';
+import {
+  User,
+  UserRole,
+} from '../../src/modules/database/entities/user.entity.js';
+import { RefreshToken } from '../../src/modules/database/entities/refreshToken.entity.js';
 import { UsersRepository } from '../../src/modules/database/repositories/users.repository.js';
 import { RefreshTokensRepository } from '../../src/modules/database/repositories/refresh-tokens.repository.js';
 import { AuthTokenService } from '../../src/modules/auth/auth-token.service.js';
@@ -12,31 +17,40 @@ describe('AuthService', () => {
     const passwordHash = await hashPassword('correct-password');
 
     const expiresAt = new Date('2030-01-01T00:00:00.000Z');
+    const user = Object.assign(new User(), {
+      id: '42',
+      email: 'user@example.com',
+      passwordHash,
+      role: UserRole.CUSTOMER,
+    });
 
     const users = {
-      findByEmail: jest.fn().mockResolvedValue({
-        id: '42',
-        email: 'user@example.com',
-        passwordHash,
-        role: UserRole.CUSTOMER,
-      }),
+      findByEmail: jest
+        .fn<UsersRepository['findByEmail']>()
+        .mockResolvedValue(user),
     };
 
     const refreshTokens = {
-      create: jest.fn().mockResolvedValue(undefined),
+      create: jest
+        .fn<RefreshTokensRepository['create']>()
+        .mockResolvedValue(new RefreshToken()),
     };
 
     const accessTokens = {
-      signAccess: jest.fn().mockResolvedValue('signed-access-token'),
+      signAccess: jest
+        .fn<AuthTokenService['signAccess']>()
+        .mockResolvedValue('signed-access-token'),
     };
 
     const refreshTokenService = {
-      generate: jest.fn().mockReturnValue({
-        token: 'raw-refresh-token',
-        tokenHash: 'stored-refresh-hash',
-        familyId: 'family-123',
-        expiresAt,
-      }),
+      generate: jest
+        .fn<RefreshTokenService['generate']>()
+        .mockReturnValue({
+          token: 'raw-refresh-token',
+          tokenHash: 'stored-refresh-hash',
+          familyId: 'family-123',
+          expiresAt,
+        }),
     };
 
     const moduleRef = await Test.createTestingModule({
