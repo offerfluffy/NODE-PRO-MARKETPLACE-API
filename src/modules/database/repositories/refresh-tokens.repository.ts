@@ -1,7 +1,4 @@
-import {
-  DataSource,
-  Repository,
-} from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { RefreshToken } from '../entities/refreshToken.entity.js';
 
 export type CreateRefreshTokenInput = {
@@ -18,9 +15,7 @@ export class RefreshTokensRepository {
     this.tokens = dataSource.getRepository(RefreshToken);
   }
 
-  async create(
-    input: CreateRefreshTokenInput,
-  ): Promise<RefreshToken> {
+  async create(input: CreateRefreshTokenInput): Promise<RefreshToken> {
     const token = this.tokens.create({
       user: {
         id: input.userId,

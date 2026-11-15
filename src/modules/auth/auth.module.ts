@@ -5,6 +5,7 @@ import { UsersRepository } from '../database/repositories/users.repository.js';
 import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository.js';
 import { AuthTokenService } from './auth-token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
+import { AuthService } from './auth.service.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -12,8 +13,7 @@ import { RefreshTokenService } from './refresh-token.service.js';
     {
       provide: UsersRepository,
       inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new UsersRepository(dataSource),
+      useFactory: (dataSource: DataSource) => new UsersRepository(dataSource),
     },
     {
       provide: RefreshTokensRepository,
@@ -23,10 +23,8 @@ import { RefreshTokenService } from './refresh-token.service.js';
     },
     AuthTokenService,
     RefreshTokenService,
+    AuthService,
   ],
-  exports: [
-    AuthTokenService,
-    RefreshTokenService,
-  ],
+  exports: [AuthTokenService, RefreshTokenService],
 })
 export class AuthModule {}
