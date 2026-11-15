@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { UnauthorizedException } from '@nestjs/common';
 import { jest } from '@jest/globals';
 import {
   User,
@@ -43,14 +44,12 @@ describe('AuthService', () => {
     };
 
     const refreshTokenService = {
-      generate: jest
-        .fn<RefreshTokenService['generate']>()
-        .mockReturnValue({
-          token: 'raw-refresh-token',
-          tokenHash: 'stored-refresh-hash',
-          familyId: 'family-123',
-          expiresAt,
-        }),
+      generate: jest.fn<RefreshTokenService['generate']>().mockReturnValue({
+        token: 'raw-refresh-token',
+        tokenHash: 'stored-refresh-hash',
+        familyId: 'family-123',
+        expiresAt,
+      }),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -98,5 +97,24 @@ describe('AuthService', () => {
     const persistedInput = refreshTokens.create.mock.calls[0][0];
 
     expect(persistedInput).not.toHaveProperty('token');
+
+    await expect(
+      service.login({
+        email: 'user@example.com',
+        password: 'wrong-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    users.findByEmail.mockResolvedValueOnce(null);
+
+    await expect(
+      service.login({
+        email: 'missing@example.com',
+        password: 'any-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(accessTokens.signAccess).toHaveBeenCalledTimes(1);
+    expect(refreshTokens.create).toHaveBeenCalledTimes(1);
   });
 });
