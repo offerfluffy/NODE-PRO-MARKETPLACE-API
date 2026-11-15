@@ -35,9 +35,7 @@ describe('AuthTokenService', () => {
       REDIS_QUEUE_URL: 'redis://localhost:6380',
     };
 
-    service = new AuthTokenService(
-      new ConfigService<Env, true>(env),
-    );
+    service = new AuthTokenService(new ConfigService<Env, true>(env));
 
     await service.onModuleInit();
   });
@@ -68,14 +66,10 @@ describe('AuthTokenService', () => {
     ) as Record<string, unknown>;
 
     payload.role = UserRole.ADMIN;
-    parts[1] = Buffer.from(JSON.stringify(payload)).toString(
-      'base64url',
-    );
+    parts[1] = Buffer.from(JSON.stringify(payload)).toString('base64url');
 
     const tamperedToken = parts.join('.');
 
-    await expect(
-      service.verifyAccess(tamperedToken),
-    ).rejects.toThrow();
+    await expect(service.verifyAccess(tamperedToken)).rejects.toThrow();
   });
 });

@@ -7,9 +7,7 @@ describe('password hashing', () => {
   it('accepts the correct password', async () => {
     const stored = await hashPassword('demo-password');
 
-    await expect(
-      verifyPassword('demo-password', stored),
-    ).resolves.toBe(true);
+    await expect(verifyPassword('demo-password', stored)).resolves.toBe(true);
 
     expect(stored).not.toContain('demo-password');
   });
@@ -17,8 +15,6 @@ describe('password hashing', () => {
   it('rejects an incorrect password', async () => {
     const stored = await hashPassword('demo-password');
 
-    await expect(
-      verifyPassword('wrong-password', stored),
-    ).resolves.toBe(false);
+    await expect(verifyPassword('wrong-password', stored)).resolves.toBe(false);
   });
 });

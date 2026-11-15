@@ -11,27 +11,21 @@ describe('RefreshTokenService', () => {
     expect(generated.tokenHash).toMatch(/^[a-f0-9]{64}$/);
     expect(generated.tokenHash).not.toBe(generated.token);
 
-    expect(
-      service.hash(generated.token),
-    ).toBe(generated.tokenHash);
+    expect(service.hash(generated.token)).toBe(generated.tokenHash);
   });
 
   it('produces a different hash with another pepper', () => {
     const token = 'the-same-refresh-token';
 
-    const firstHash =
-      createService('pepper-one').hash(token);
+    const firstHash = createService('pepper-one').hash(token);
 
-    const secondHash =
-      createService('pepper-two').hash(token);
+    const secondHash = createService('pepper-two').hash(token);
 
     expect(firstHash).not.toBe(secondHash);
   });
 });
 
-function createService(
-  pepper: string,
-): RefreshTokenService {
+function createService(pepper: string): RefreshTokenService {
   const config = new ConfigService<Env, true>({
     REFRESH_TOKEN_PEPPER: pepper,
   } as Env);

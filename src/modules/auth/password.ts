@@ -1,8 +1,4 @@
-import {
-  randomBytes,
-  scrypt,
-  timingSafeEqual,
-} from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
 const N = 16_384;
 const R = 8;
@@ -10,9 +6,7 @@ const P = 1;
 const KEY_LENGTH = 32;
 const SALT_LENGTH = 16;
 
-export async function hashPassword(
-  password: string,
-): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(SALT_LENGTH);
   const hash = await deriveKey(password, salt);
 
@@ -50,10 +44,7 @@ export async function verifyPassword(
   const salt = Buffer.from(saltBase64, 'base64');
   const expectedHash = Buffer.from(hashBase64, 'base64');
 
-  if (
-    salt.length !== SALT_LENGTH ||
-    expectedHash.length !== KEY_LENGTH
-  ) {
+  if (salt.length !== SALT_LENGTH || expectedHash.length !== KEY_LENGTH) {
     return false;
   }
 
@@ -62,10 +53,7 @@ export async function verifyPassword(
   return timingSafeEqual(actualHash, expectedHash);
 }
 
-function deriveKey(
-  password: string,
-  salt: Buffer,
-): Promise<Buffer> {
+function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     scrypt(
       password,
