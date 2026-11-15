@@ -7,6 +7,12 @@ import {
 } from '../../integration/testkit/postgres.js';
 import { OrderPlacedPublisher } from '../../../src/modules/messaging/rabbitmq/order-placed.publisher.js';
 import { OrderPlacedConsumer } from '../../../src/modules/messaging/rabbitmq/order-placed.consumer.js';
+import {
+  CACHE_REDIS,
+  DURABLE_REDIS,
+} from '../../../src/modules/redis/redis.tokens.js';
+import { OrderPostProcessingQueueService } from '../../../src/modules/jobs/order-post-processing-queue.service.js';
+import { OrderPostProcessingWorker } from '../../../src/modules/jobs/order-post-processing.worker.js';
 
 export type TestApplication = TestDatabase & {
   app: INestApplication;
@@ -19,6 +25,8 @@ export async function startTestApplication(): Promise<TestApplication> {
   process.env.PORT = '3000';
   process.env.DB_URL = database.container.getConnectionUri();
   process.env.BROKER_URL = 'amqp://app:app@127.0.0.1:21140';
+  process.env.REDIS_URL = 'redis://127.0.0.1:1';
+  process.env.REDIS_QUEUE_URL = 'redis://127.0.0.1:1';
   process.env.LOG_LEVEL = 'error';
   process.env.TIMEOUT_MS = '5000';
   delete process.env.DB_PASSWORD_FILE;
@@ -26,6 +34,10 @@ export async function startTestApplication(): Promise<TestApplication> {
   try {
     // Must be dynamic: DB_URL must exist before AppModule is evaluated.
     const { AppModule } = await import('../../../src/app.module.js');
+    const redisStub = {
+      del: async () => 0,
+      quit: async () => 'OK',
+    };
 
     const moduleRef = await Test.createTestingModule({
       imports: [AppModule],
@@ -35,6 +47,16 @@ export async function startTestApplication(): Promise<TestApplication> {
         publish: async () => undefined,
       })
       .overrideProvider(OrderPlacedConsumer)
+      .useValue({})
+      .overrideProvider(CACHE_REDIS)
+      .useValue(redisStub)
+      .overrideProvider(DURABLE_REDIS)
+      .useValue(redisStub)
+      .overrideProvider(OrderPostProcessingQueueService)
+      .useValue({
+        enqueue: async () => undefined,
+      })
+      .overrideProvider(OrderPostProcessingWorker)
       .useValue({})
       .compile();
 

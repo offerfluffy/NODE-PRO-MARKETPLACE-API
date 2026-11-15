@@ -92,5 +92,44 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+  redis-cache:
+    image: redis:8-alpine
+    command:
+      [
+        'redis-server',
+        '--maxmemory',
+        '64mb',
+        '--maxmemory-policy',
+        'allkeys-lru',
+      ]
+    ports:
+      - '21150:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+  redis-queue:
+    image: redis:8-alpine
+    command:
+      [
+        'redis-server',
+        '--maxmemory-policy',
+        'noeviction',
+        '--appendonly',
+        'yes',
+        '--appendfsync',
+        'everysec',
+      ]
+    ports:
+      - '21160:6379'
+    volumes:
+      - redis_queue_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 5s
+      retries: 30
 volumes:
   restore_data:
+  redis_queue_data:

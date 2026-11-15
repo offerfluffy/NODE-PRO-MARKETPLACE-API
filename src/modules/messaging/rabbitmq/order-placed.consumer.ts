@@ -22,6 +22,7 @@ import {
   orderPlacedEventSchema,
 } from '../../orders/events/order-placed.event.js';
 import { applyOrderPlacedEffect } from '../../orders/events/apply-order-placed.effect.js';
+import { OrderPostProcessingQueueService } from '../../jobs/order-post-processing-queue.service.js';
 
 export const ORDER_PLACED_PREFETCH = 10;
 
@@ -35,6 +36,7 @@ export class OrderPlacedConsumer implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly config: ConfigService<Env, true>,
     private readonly dataSource: DataSource,
+    private readonly orderPostProcessingQueueService: OrderPostProcessingQueueService,
   ) {}
 
   private async handleMessage(
@@ -56,6 +58,17 @@ export class OrderPlacedConsumer implements OnModuleInit, OnModuleDestroy {
       await applyOrderPlacedEffect(this.dataSource, event);
     } catch {
       channel.reject(message, false);
+      return;
+    }
+
+    try {
+      await this.orderPostProcessingQueueService.enqueue({
+        eventId: event.eventId,
+        orderId: event.data.orderId,
+        customerId: event.data.customerId,
+      });
+    } catch {
+      channel.nack(message, false, true);
       return;
     }
 

@@ -4,6 +4,9 @@ import { AppController } from './app.controller.js';
 import { validate } from './config/env.schema.js';
 import { DatabaseModule } from './modules/database/database.module.js';
 import { OrdersModule } from './modules/orders/orders.module.js';
+import { RedisModule } from './modules/redis/redis.module.js';
+import { ProductsModule } from './modules/products/products.module.js';
+import { SessionsModule } from './modules/sessions/sessions.module.js';
 
 @Module({
   imports: [
@@ -12,8 +15,11 @@ import { OrdersModule } from './modules/orders/orders.module.js';
       ignoreEnvFile: process.env.NODE_ENV === 'test',
       validate,
     }),
+    RedisModule,
     DatabaseModule,
     OrdersModule,
+    ProductsModule,
+    SessionsModule,
   ],
   controllers: [AppController],
   providers: [],

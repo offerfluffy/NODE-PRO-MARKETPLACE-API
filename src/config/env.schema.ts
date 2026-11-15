@@ -8,6 +8,8 @@ export const envSchema = z
     BROKER_URL: z.url({ protocol: /^amqps?$/ }),
     LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+    REDIS_URL: z.url({ protocol: /^rediss?$/ }),
+    REDIS_QUEUE_URL: z.url({ protocol: /^rediss?$/ }),
   })
   .superRefine((env, context) => {
     const passwordInUrl = new URL(env.DB_URL).password;

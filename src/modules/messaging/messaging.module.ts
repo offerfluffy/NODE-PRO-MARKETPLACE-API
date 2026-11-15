@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { OrderPlacedPublisher } from './rabbitmq/order-placed.publisher.js';
 import { OrderPlacedConsumer } from './rabbitmq/order-placed.consumer.js';
+import { JobsModule } from '../jobs/jobs.module.js';
 
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, JobsModule],
   providers: [OrderPlacedPublisher, OrderPlacedConsumer],
   exports: [OrderPlacedPublisher],
 })

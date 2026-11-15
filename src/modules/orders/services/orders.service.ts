@@ -7,6 +7,7 @@ import {
 import { CheckoutService } from './checkout/index.js';
 import { OrderStatus } from '../../database/entities/order.entity.js';
 import { OrderEventsService } from '../realtime/order-events.service.js';
+import { ProductCardCacheService } from '../../products/product-card-cache.service.js';
 
 export type CreateOrderCommand = {
   customerId: string;
@@ -23,6 +24,7 @@ export class OrdersService {
     private readonly ordersRepository: OrdersRepository,
     private readonly checkoutService: CheckoutService,
     private readonly orderEventsService: OrderEventsService,
+    private readonly productCardCacheService: ProductCardCacheService,
   ) {}
 
   async findById(id: string): Promise<OrderResponseDto | null> {
@@ -47,6 +49,14 @@ export class OrdersService {
 
   async create(input: CreateOrderCommand): Promise<OrderResponseDto> {
     const checkout = await this.checkoutService.checkout(input);
+
+    const productIds = new Set(checkout.items.map((item) => item.productId));
+
+    await Promise.all(
+      [...productIds].map((productId) =>
+        this.productCardCacheService.invalidate(productId),
+      ),
+    );
 
     return orderResponseSchema.parse({
       id: checkout.orderId,
