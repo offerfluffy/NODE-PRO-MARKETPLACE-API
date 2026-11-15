@@ -24,7 +24,7 @@ export class RefreshTokenService {
     });
   }
 
-  generate(familyId = randomUUID()): GeneratedRefreshToken {
+  generate(familyId: string = randomUUID()): GeneratedRefreshToken {
     const token = randomBytes(REFRESH_TOKEN_BYTES).toString('base64url');
 
     return {

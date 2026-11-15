@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { UsersRepository } from '../database/repositories/users.repository.js';
 import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository.js';
 import { verifyPassword } from './password.js';
@@ -13,7 +13,7 @@ export type LoginInput = {
   password: string;
 };
 
-export type LoginResult = {
+export type TokenPairResult = {
   accessToken: string;
   refreshToken: string;
   refreshExpiresAt: Date;
@@ -21,6 +21,8 @@ export type LoginResult = {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly users: UsersRepository,
     private readonly refreshTokens: RefreshTokensRepository,
@@ -28,7 +30,7 @@ export class AuthService {
     private readonly refreshTokenService: RefreshTokenService,
   ) {}
 
-  async login(input: LoginInput): Promise<LoginResult> {
+  async login(input: LoginInput): Promise<TokenPairResult> {
     const user = await this.users.findByEmail(input.email);
 
     const passwordMatches = await verifyPassword(
@@ -58,6 +60,37 @@ export class AuthService {
       accessToken,
       refreshToken: refresh.token,
       refreshExpiresAt: refresh.expiresAt,
+    };
+  }
+
+  async refresh(rawRefreshToken: string): Promise<TokenPairResult> {
+    const tokenHash = this.refreshTokenService.hash(rawRefreshToken);
+
+    const result = await this.refreshTokens.rotate(tokenHash, (familyId) =>
+      this.refreshTokenService.generate(familyId),
+    );
+
+    if (result.status === 'reuse') {
+      this.logger.warn(
+        `Refresh token reuse detected: familyId=${result.familyId}`,
+      );
+
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (result.status === 'invalid') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const accessToken = await this.accessTokens.signAccess({
+      userId: result.userId,
+      role: result.role,
+    });
+
+    return {
+      accessToken,
+      refreshToken: result.next.token,
+      refreshExpiresAt: result.next.expiresAt,
     };
   }
 }
