@@ -1,5 +1,6 @@
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { generateKeyPairSync } from 'node:crypto';
 import {
   startTestDatabase,
   stopTestDatabase,
@@ -20,13 +21,24 @@ export type TestApplication = TestDatabase & {
 
 export async function startTestApplication(): Promise<TestApplication> {
   const database = await startTestDatabase();
+  const { privateKey, publicKey } = generateKeyPairSync('ec', {
+    namedCurve: 'P-256',
+    privateKeyEncoding: {
+      type: 'pkcs8',
+      format: 'pem',
+    },
+    publicKeyEncoding: {
+      type: 'spki',
+      format: 'pem',
+    },
+  });
 
   process.env.NODE_ENV = 'test';
   process.env.PORT = '3000';
   process.env.DB_URL = database.container.getConnectionUri();
   process.env.BROKER_URL = 'amqp://app:app@127.0.0.1:21140';
-  process.env.JWT_PRIVATE_KEY = 'test-private-key';
-  process.env.JWT_PUBLIC_KEY = 'test-public-key';
+  process.env.JWT_PRIVATE_KEY = Buffer.from(privateKey).toString('base64');
+  process.env.JWT_PUBLIC_KEY = Buffer.from(publicKey).toString('base64');
   process.env.JWT_KID = 'test-key';
   process.env.REFRESH_TOKEN_PEPPER = 'test-refresh-token-pepper';
   process.env.REDIS_URL = 'redis://127.0.0.1:1';
