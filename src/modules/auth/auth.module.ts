@@ -6,9 +6,11 @@ import { RefreshTokensRepository } from '../database/repositories/refresh-tokens
 import { AuthTokenService } from './auth-token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { AuthService } from './auth.service.js';
+import { AuthController } from './auth.controller.js';
 
 @Module({
   imports: [DatabaseModule],
+  controllers: [AuthController],
   providers: [
     {
       provide: UsersRepository,

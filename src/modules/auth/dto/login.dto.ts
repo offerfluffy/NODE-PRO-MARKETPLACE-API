@@ -7,10 +7,7 @@ export const loginSchema = z.strictObject({
     .email()
     .transform((value) => value.toLowerCase()),
 
-  password: z
-    .string()
-    .min(1)
-    .max(256),
+  password: z.string().min(1).max(256),
 });
 
 export type LoginDto = z.infer<typeof loginSchema>;
