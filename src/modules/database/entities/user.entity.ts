@@ -12,7 +12,7 @@ import {
 import { Order } from './order.entity.js';
 import { Product } from './product.entity.js';
 
-export const enum UserRole {
+export enum UserRole {
   CUSTOMER = 'customer',
   SELLER = 'seller',
   ADMIN = 'admin',
