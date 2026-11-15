@@ -14,6 +14,7 @@ import {
 import { Inventory } from '../../src/modules/database/entities/inventory.entity.js';
 import { Product } from '../../src/modules/database/entities/product.entity.js';
 import { User } from '../../src/modules/database/entities/user.entity.js';
+import { RefreshToken } from '../../src/modules/database/entities/refreshToken.entity.js';
 import { OrdersController } from '../../src/modules/orders/orders.controller.js';
 import { OrderEventsService } from '../../src/modules/orders/realtime/order-events.service.js';
 import { CheckoutService } from '../../src/modules/orders/services/checkout/index.js';
@@ -38,6 +39,46 @@ describe('Application E2E', () => {
       .expect(200);
 
     expect(response.body.current_user).toBe(context.container.getUsername());
+  });
+
+  it('logs in and keeps refresh outside JSON', async () => {
+    const response = await request(context.app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'customer.one@example.com',
+        password: 'demo-password',
+      })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      accessToken: expect.any(String),
+    });
+    expect(response.body).not.toHaveProperty('refreshToken');
+
+    const setCookie = response.headers['set-cookie']?.[0];
+
+    expect(setCookie).toBeDefined();
+
+    if (!setCookie) {
+      throw new Error('Login did not set a refresh cookie');
+    }
+
+    expect(setCookie).toContain('refresh_token=');
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Strict');
+    expect(setCookie).toContain('Path=/auth');
+
+    const rawRefresh = /refresh_token=([^;]+)/.exec(setCookie)?.[1];
+
+    expect(rawRefresh).toBeDefined();
+
+    const storedTokens = await context.dataSource
+      .getRepository(RefreshToken)
+      .find();
+
+    expect(storedTokens).toHaveLength(1);
+    expect(storedTokens[0].tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(storedTokens[0].tokenHash).not.toBe(rawRefresh);
   });
 
   it('returns 404 when an order does not exist', async () => {
