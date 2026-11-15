@@ -81,6 +81,49 @@ describe('Application E2E', () => {
     expect(storedTokens[0].tokenHash).not.toBe(rawRefresh);
   });
 
+  it('revokes the refresh family when R1 is reused', async () => {
+    const login = await request(context.app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'customer.two@example.com',
+        password: 'demo-password',
+      })
+      .expect(200);
+
+    const r1 = login.headers['set-cookie']?.[0]?.split(';')[0];
+
+    if (!r1) {
+      throw new Error('Login did not return R1 cookie');
+    }
+
+    const firstRefresh = await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', r1)
+      .expect(200);
+
+    expect(firstRefresh.body).toEqual({
+      accessToken: expect.any(String),
+    });
+
+    const r2 = firstRefresh.headers['set-cookie']?.[0]?.split(';')[0];
+
+    if (!r2) {
+      throw new Error('Refresh did not return R2 cookie');
+    }
+
+    expect(r2).not.toBe(r1);
+
+    await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', r1)
+      .expect(401);
+
+    await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', r2)
+      .expect(401);
+  });
+
   it('returns 404 when an order does not exist', async () => {
     const response = await request(context.app.getHttpServer())
       .get('/orders/999999')
