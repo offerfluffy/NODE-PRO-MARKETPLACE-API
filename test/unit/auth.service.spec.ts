@@ -13,6 +13,7 @@ import { RefreshTokenService } from '../../src/modules/auth/services/refresh-tok
 import { AuthService } from '../../src/modules/auth/services/auth.service.js';
 import { AccessDenylistService } from '../../src/modules/auth/services/access-denylist.service.js';
 import { hashPassword } from '../../src/modules/auth/utils/password.js';
+import type { AccessTokenClaims } from '../../src/modules/auth/types/auth.types.js';
 
 describe('AuthService', () => {
   it('returns raw refresh but persists only its hash', async () => {
@@ -127,5 +128,71 @@ describe('AuthService', () => {
 
     expect(accessTokens.signAccess).toHaveBeenCalledTimes(1);
     expect(refreshTokens.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('revokes both refresh family and access token on logout', async () => {
+    const refreshTokens = {
+      revokeFamilyByTokenHash: jest
+        .fn<RefreshTokensRepository['revokeFamilyByTokenHash']>()
+        .mockResolvedValue(true),
+    };
+
+    const refreshTokenService = {
+      hash: jest
+        .fn<RefreshTokenService['hash']>()
+        .mockReturnValue('hashed-refresh-token'),
+    };
+
+    const accessDenylist = {
+      revoke: jest
+        .fn<AccessDenylistService['revoke']>()
+        .mockResolvedValue(undefined),
+    };
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuthService,
+        {
+          provide: UsersRepository,
+          useValue: {},
+        },
+        {
+          provide: RefreshTokensRepository,
+          useValue: refreshTokens,
+        },
+        {
+          provide: AuthTokenService,
+          useValue: {},
+        },
+        {
+          provide: RefreshTokenService,
+          useValue: refreshTokenService,
+        },
+        {
+          provide: AccessDenylistService,
+          useValue: accessDenylist,
+        },
+      ],
+    }).compile();
+
+    const service = moduleRef.get(AuthService);
+    const claims: AccessTokenClaims = {
+      sub: '42',
+      role: UserRole.CUSTOMER,
+      jti: 'access-jti',
+      iss: 'marketplace-api',
+      aud: 'marketplace-web',
+      iat: 1_000,
+      exp: 2_000,
+    };
+
+    await service.logout(claims, 'raw-refresh-token');
+
+    expect(refreshTokenService.hash).toHaveBeenCalledWith('raw-refresh-token');
+    expect(refreshTokens.revokeFamilyByTokenHash).toHaveBeenCalledWith(
+      'hashed-refresh-token',
+      '42',
+    );
+    expect(accessDenylist.revoke).toHaveBeenCalledWith(claims);
   });
 });

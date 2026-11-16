@@ -102,4 +102,46 @@ describe('RefreshTokensRepository', () => {
 
     expect(r2AfterReuse.status).toBe('invalid');
   });
+
+  it('revokes every token in the authenticated user refresh family', async () => {
+    const users = new UsersRepository(context.dataSource);
+    const tokens = new RefreshTokensRepository(context.dataSource);
+    const tokenService = new RefreshTokenService(
+      new ConfigService<Env, true>({
+        REFRESH_TOKEN_PEPPER: 'integration-pepper',
+      } as Env),
+    );
+    const user = await users.create(aUser());
+    const anotherUser = await users.create(aUser());
+    const r1 = tokenService.generate();
+    const r2 = tokenService.generate(r1.familyId);
+
+    await tokens.create({
+      userId: user.id,
+      tokenHash: r1.tokenHash,
+      familyId: r1.familyId,
+      expiresAt: r1.expiresAt,
+    });
+    await tokens.create({
+      userId: user.id,
+      tokenHash: r2.tokenHash,
+      familyId: r2.familyId,
+      expiresAt: r2.expiresAt,
+    });
+
+    await expect(
+      tokens.revokeFamilyByTokenHash(r1.tokenHash, anotherUser.id),
+    ).resolves.toBe(false);
+
+    await expect(
+      tokens.revokeFamilyByTokenHash(r1.tokenHash, user.id),
+    ).resolves.toBe(true);
+
+    const family = await context.dataSource.getRepository(RefreshToken).findBy({
+      familyId: r1.familyId,
+    });
+
+    expect(family).toHaveLength(2);
+    expect(family.every((token) => token.revokedAt !== null)).toBe(true);
+  });
 });

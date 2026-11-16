@@ -50,9 +50,25 @@ export async function startTestApplication(): Promise<TestApplication> {
   try {
     // Must be dynamic: DB_URL must exist before AppModule is evaluated.
     const { AppModule } = await import('../../../src/app.module.js');
+    const revokedAccessKeys = new Set<string>();
     const redisStub = {
-      del: async () => 0,
-      exists: async () => 0,
+      del: async (...keys: string[]) => {
+        let deleted = 0;
+
+        for (const key of keys) {
+          if (revokedAccessKeys.delete(key)) {
+            deleted += 1;
+          }
+        }
+
+        return deleted;
+      },
+      exists: async (key: string) => (revokedAccessKeys.has(key) ? 1 : 0),
+      set: async (key: string) => {
+        revokedAccessKeys.add(key);
+
+        return 'OK';
+      },
       quit: async () => 'OK',
     };
 

@@ -9,6 +9,8 @@ import {
 } from '../../src/modules/auth/auth.controller.js';
 import { AuthService } from '../../src/modules/auth/services/auth.service.js';
 import { AccessTokenGuard } from '../../src/modules/auth/guards/access-token.guard.js';
+import type { AccessTokenClaims } from '../../src/modules/auth/types/auth.types.js';
+import { UserRole } from '../../src/modules/database/entities/user.entity.js';
 
 describe('AuthController', () => {
   it('returns access in JSON and refresh in httpOnly cookie', async () => {
@@ -77,5 +79,61 @@ describe('AuthController', () => {
         expires: expiresAt,
       },
     );
+  });
+
+  it('passes both credentials to logout and clears the refresh cookie', async () => {
+    const auth = {
+      logout: jest.fn<AuthService['logout']>().mockResolvedValue(undefined),
+    };
+    const config = new ConfigService<Env, true>({
+      NODE_ENV: 'test',
+    } as Env);
+    const moduleRef = await Test.createTestingModule({
+      controllers: [AuthController],
+      providers: [
+        {
+          provide: AuthService,
+          useValue: auth,
+        },
+        {
+          provide: ConfigService,
+          useValue: config,
+        },
+      ],
+    })
+      .overrideGuard(AccessTokenGuard)
+      .useValue({
+        canActivate: () => true,
+      })
+      .compile();
+
+    const controller = moduleRef.get(AuthController);
+    const claims: AccessTokenClaims = {
+      sub: '42',
+      role: UserRole.CUSTOMER,
+      jti: 'access-jti',
+      iss: 'marketplace-api',
+      aud: 'marketplace-web',
+      iat: 1_000,
+      exp: 2_000,
+    };
+    const clearCookie = jest.fn();
+    const response = {
+      clearCookie,
+    } as unknown as Response;
+
+    await controller.logout(
+      claims,
+      `${REFRESH_COOKIE_NAME}=raw-refresh-token`,
+      response,
+    );
+
+    expect(auth.logout).toHaveBeenCalledWith(claims, 'raw-refresh-token');
+    expect(clearCookie).toHaveBeenCalledWith(REFRESH_COOKIE_NAME, {
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: false,
+      path: '/auth',
+    });
   });
 });

@@ -147,6 +147,46 @@ describe('Application E2E', () => {
       .expect(401);
   });
 
+  it('revokes both access and refresh tokens on logout', async () => {
+    const login = await request(context.app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'customer.one@example.com',
+        password: 'demo-password',
+      })
+      .expect(200);
+
+    const accessToken = login.body.accessToken as string;
+    const refreshCookie = login.headers['set-cookie']?.[0]?.split(';')[0];
+
+    if (!refreshCookie) {
+      throw new Error('Login did not return a refresh cookie');
+    }
+
+    await request(context.app.getHttpServer())
+      .get('/orders/999999')
+      .auth(accessToken, { type: 'bearer' })
+      .expect(404);
+
+    const logout = await request(context.app.getHttpServer())
+      .post('/auth/logout')
+      .auth(accessToken, { type: 'bearer' })
+      .set('Cookie', refreshCookie)
+      .expect(204);
+
+    expect(logout.headers['set-cookie']?.[0]).toContain('refresh_token=;');
+
+    await request(context.app.getHttpServer())
+      .get('/orders/999999')
+      .auth(accessToken, { type: 'bearer' })
+      .expect(401);
+
+    await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', refreshCookie)
+      .expect(401);
+  });
+
   it('rejects anonymous order requests', async () => {
     await request(context.app.getHttpServer())
       .get('/orders/999999')
