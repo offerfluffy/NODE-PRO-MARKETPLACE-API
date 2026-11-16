@@ -33,6 +33,7 @@
     "demo:ratelimit": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-ratelimit.js'",
     "demo:queue": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-queue.js'",
     "demo:session": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-session.js'",
+    "demo:auth": "bash scripts/with-secrets.sh dev sh -c 'npm run build --silent && npm run build:demo --silent && node dist-demo/demo/demo-auth.js'",
     "demo:reuse": "bash scripts/with-secrets.sh dev sh -c 'npm run build --silent && npm run build:demo --silent && node dist-demo/demo/demo-reuse.js'",
     "demo:realtime": "node scripts/realtime-demo.mjs",
     "demo:publish": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-publish.js'",
