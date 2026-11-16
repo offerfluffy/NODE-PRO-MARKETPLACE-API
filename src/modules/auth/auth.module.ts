@@ -8,9 +8,11 @@ import { RefreshTokenService } from './refresh-token.service.js';
 import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { AccessTokenGuard } from './access-token.guard.js';
+import { RedisModule } from '../redis/redis.module.js';
+import { AccessDenylistService } from './access-denylist.service.js';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, RedisModule],
   controllers: [AuthController],
   providers: [
     {
@@ -28,7 +30,13 @@ import { AccessTokenGuard } from './access-token.guard.js';
     RefreshTokenService,
     AuthService,
     AccessTokenGuard,
+    AccessDenylistService,
   ],
-  exports: [AuthTokenService, RefreshTokenService, AccessTokenGuard],
+  exports: [
+    AuthTokenService,
+    RefreshTokenService,
+    AccessTokenGuard,
+    AccessDenylistService,
+  ],
 })
 export class AuthModule {}
