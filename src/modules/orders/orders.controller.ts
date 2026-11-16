@@ -105,6 +105,8 @@ export class OrdersController {
 
   @Get(':id')
   async findById(
+    @CurrentUser()
+    user: AccessTokenClaims,
     @Param('id', new ZodValidationPipe(postgresBigintIdSchema))
     id: string,
   ): Promise<OrderResponseDto> {
@@ -112,6 +114,12 @@ export class OrdersController {
 
     if (!order) {
       throw new NotFoundException(`Order ${id} was not found`);
+    }
+
+    if (order.customer_id !== user.sub) {
+      throw new ForbiddenException(
+        'The order does not belong to this customer',
+      );
     }
 
     return order;
