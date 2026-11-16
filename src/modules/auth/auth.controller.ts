@@ -12,10 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import type { Env } from '../../config/env.schema.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
-import {
-  AuthService,
-  type TokenPairResult,
-} from './services/auth.service.js';
+import { AuthService, type TokenPairResult } from './services/auth.service.js';
 import { loginSchema, type LoginDto } from './dto/login.dto.js';
 import { readCookie } from './utils/cookie.js';
 
