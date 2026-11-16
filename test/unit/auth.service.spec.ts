@@ -8,10 +8,10 @@ import {
 import { RefreshToken } from '../../src/modules/database/entities/refreshToken.entity.js';
 import { UsersRepository } from '../../src/modules/database/repositories/users.repository.js';
 import { RefreshTokensRepository } from '../../src/modules/database/repositories/refresh-tokens.repository.js';
-import { AuthTokenService } from '../../src/modules/auth/auth-token.service.js';
-import { RefreshTokenService } from '../../src/modules/auth/refresh-token.service.js';
-import { AuthService } from '../../src/modules/auth/auth.service.js';
-import { hashPassword } from '../../src/modules/auth/password.js';
+import { AuthTokenService } from '../../src/modules/auth/services/auth-token.service.js';
+import { RefreshTokenService } from '../../src/modules/auth/services/refresh-token.service.js';
+import { AuthService } from '../../src/modules/auth/services/auth.service.js';
+import { hashPassword } from '../../src/modules/auth/utils/password.js';
 
 describe('AuthService', () => {
   it('returns raw refresh but persists only its hash', async () => {

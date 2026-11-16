@@ -18,7 +18,7 @@ import { RefreshToken } from '../../src/modules/database/entities/refreshToken.e
 import { OrdersController } from '../../src/modules/orders/orders.controller.js';
 import { OrderEventsService } from '../../src/modules/orders/realtime/order-events.service.js';
 import { CheckoutService } from '../../src/modules/orders/services/checkout/index.js';
-import { AuthTokenService } from '../../src/modules/auth/auth-token.service.js';
+import { AuthTokenService } from '../../src/modules/auth/services/auth-token.service.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;

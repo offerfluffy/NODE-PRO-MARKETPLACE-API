@@ -1,7 +1,7 @@
 import {
   hashPassword,
   verifyPassword,
-} from '../../src/modules/auth/password.js';
+} from '../../src/modules/auth/utils/password.js';
 
 describe('password hashing', () => {
   it('accepts the correct password', async () => {

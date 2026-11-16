@@ -7,7 +7,7 @@ import {
   AuthController,
   REFRESH_COOKIE_NAME,
 } from '../../src/modules/auth/auth.controller.js';
-import { AuthService } from '../../src/modules/auth/auth.service.js';
+import { AuthService } from '../../src/modules/auth/services/auth.service.js';
 
 describe('AuthController', () => {
   it('returns access in JSON and refresh in httpOnly cookie', async () => {

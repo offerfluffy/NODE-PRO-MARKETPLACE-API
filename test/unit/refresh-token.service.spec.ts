@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../src/config/env.schema.js';
-import { RefreshTokenService } from '../../src/modules/auth/refresh-token.service.js';
+import { RefreshTokenService } from '../../src/modules/auth/services/refresh-token.service.js';
 
 describe('RefreshTokenService', () => {
   it('generates an opaque token and stores only its hash', () => {

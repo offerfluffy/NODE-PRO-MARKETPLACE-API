@@ -2,7 +2,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import type { Env } from '../../src/config/env.schema.js';
 import { UserRole } from '../../src/modules/database/entities/user.entity.js';
-import { AuthTokenService } from '../../src/modules/auth/auth-token.service.js';
+import { AuthTokenService } from '../../src/modules/auth/services/auth-token.service.js';
 
 describe('AuthTokenService', () => {
   let service: AuthTokenService;

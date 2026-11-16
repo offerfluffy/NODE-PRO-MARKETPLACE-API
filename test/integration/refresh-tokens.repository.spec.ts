@@ -3,7 +3,7 @@ import type { Env } from '../../src/config/env.schema.js';
 import { RefreshToken } from '../../src/modules/database/entities/refreshToken.entity.js';
 import { UsersRepository } from '../../src/modules/database/repositories/users.repository.js';
 import { RefreshTokensRepository } from '../../src/modules/database/repositories/refresh-tokens.repository.js';
-import { RefreshTokenService } from '../../src/modules/auth/refresh-token.service.js';
+import { RefreshTokenService } from '../../src/modules/auth/services/refresh-token.service.js';
 import {
   startTestDatabase,
   stopTestDatabase,

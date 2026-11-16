@@ -2,11 +2,11 @@ import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { jest } from '@jest/globals';
 import { UserRole } from '../../src/modules/database/entities/user.entity.js';
-import { AccessTokenGuard } from '../../src/modules/auth/access-token.guard.js';
-import { AuthTokenService } from '../../src/modules/auth/auth-token.service.js';
-import { AccessDenylistService } from '../../src/modules/auth/access-denylist.service.js';
-import type { AuthenticatedRequest } from '../../src/modules/auth/auth-request.js';
-import type { AccessTokenClaims } from '../../src/modules/auth/auth.types.js';
+import { AccessTokenGuard } from '../../src/modules/auth/guards/access-token.guard.js';
+import { AuthTokenService } from '../../src/modules/auth/services/auth-token.service.js';
+import { AccessDenylistService } from '../../src/modules/auth/services/access-denylist.service.js';
+import type { AuthenticatedRequest } from '../../src/modules/auth/types/auth-request.js';
+import type { AccessTokenClaims } from '../../src/modules/auth/types/auth.types.js';
 
 describe('AccessTokenGuard', () => {
   const claims: AccessTokenClaims = {
