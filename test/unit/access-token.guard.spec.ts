@@ -4,6 +4,7 @@ import { jest } from '@jest/globals';
 import { UserRole } from '../../src/modules/database/entities/user.entity.js';
 import { AccessTokenGuard } from '../../src/modules/auth/access-token.guard.js';
 import { AuthTokenService } from '../../src/modules/auth/auth-token.service.js';
+import { AccessDenylistService } from '../../src/modules/auth/access-denylist.service.js';
 import type { AuthenticatedRequest } from '../../src/modules/auth/auth-request.js';
 import type { AccessTokenClaims } from '../../src/modules/auth/auth.types.js';
 
@@ -21,11 +22,15 @@ describe('AccessTokenGuard', () => {
   const tokens = {
     verifyAccess: jest.fn<AuthTokenService['verifyAccess']>(),
   };
+  const denylist = {
+    isRevoked: jest.fn<AccessDenylistService['isRevoked']>(),
+  };
 
   let guard: AccessTokenGuard;
 
   beforeEach(async () => {
     tokens.verifyAccess.mockReset();
+    denylist.isRevoked.mockReset().mockResolvedValue(false);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -33,6 +38,10 @@ describe('AccessTokenGuard', () => {
         {
           provide: AuthTokenService,
           useValue: tokens,
+        },
+        {
+          provide: AccessDenylistService,
+          useValue: denylist,
         },
       ],
     }).compile();
@@ -48,6 +57,7 @@ describe('AccessTokenGuard', () => {
     );
 
     expect(tokens.verifyAccess).not.toHaveBeenCalled();
+    expect(denylist.isRevoked).not.toHaveBeenCalled();
   });
 
   it('rejects an invalid token', async () => {
@@ -58,6 +68,21 @@ describe('AccessTokenGuard', () => {
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
+
+    expect(denylist.isRevoked).not.toHaveBeenCalled();
+  });
+
+  it('rejects a revoked access token', async () => {
+    tokens.verifyAccess.mockResolvedValueOnce(claims);
+    denylist.isRevoked.mockResolvedValueOnce(true);
+
+    const { context, request } = createContext('Bearer revoked-token');
+
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+
+    expect(request.auth).toBeUndefined();
   });
 
   it('stores verified claims on the request', async () => {
@@ -67,6 +92,7 @@ describe('AccessTokenGuard', () => {
 
     await expect(guard.canActivate(context)).resolves.toBe(true);
 
+    expect(denylist.isRevoked).toHaveBeenCalledWith(claims);
     expect(request.auth).toEqual(claims);
   });
 });
