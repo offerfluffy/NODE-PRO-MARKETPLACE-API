@@ -24,20 +24,14 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context
-      .switchToHttp()
-      .getRequest<AuthenticatedRequest>();
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     if (!request.auth) {
-      throw new UnauthorizedException(
-        'Authentication context is missing',
-      );
+      throw new UnauthorizedException('Authentication context is missing');
     }
 
     if (!allowedRoles.includes(request.auth.role)) {
-      throw new ForbiddenException(
-        'Your role cannot perform this action',
-      );
+      throw new ForbiddenException('Your role cannot perform this action');
     }
 
     return true;

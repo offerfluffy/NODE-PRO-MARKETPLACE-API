@@ -3,5 +3,4 @@ import type { UserRole } from '../../database/entities/user.entity.js';
 
 export const ROLES_KEY = 'allowed_roles';
 
-export const Roles = (...roles: UserRole[]) =>
-  SetMetadata(ROLES_KEY, roles);
+export const Roles = (...roles: UserRole[]) => SetMetadata(ROLES_KEY, roles);
