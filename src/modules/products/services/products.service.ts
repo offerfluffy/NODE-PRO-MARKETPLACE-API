@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   ProductsRepository,
   type CreateProductInput,
-} from '../database/repositories/products.repository.js';
+} from '../../database/repositories/products.repository.js';
 
 @Injectable()
 export class ProductsService {

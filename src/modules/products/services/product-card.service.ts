@@ -1,10 +1,10 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { Injectable } from '@nestjs/common';
-import { ProductCardRepository } from '../database/repositories/product-card.repository.js';
+import { ProductCardRepository } from '../../database/repositories/product-card.repository.js';
 import {
   productCardSchema,
   type ProductCardDto,
-} from './dto/product-card.dto.js';
+} from '../dto/product-card.dto.js';
 import { ProductCardCacheService } from './product-card-cache.service.js';
 
 const WAITER_ATTEMPTS = 20;

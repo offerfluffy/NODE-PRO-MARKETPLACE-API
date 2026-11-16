@@ -3,8 +3,8 @@ import { Redis } from 'ioredis';
 import { DataSource } from 'typeorm';
 import dataSource from '../src/modules/database/data-source.js';
 import { ProductCardRepository } from '../src/modules/database/repositories/product-card.repository.js';
-import { ProductCardCacheService } from '../src/modules/products/product-card-cache.service.js';
-import { ProductCardService } from '../src/modules/products/product-card.service.js';
+import { ProductCardCacheService } from '../src/modules/products/services/product-card-cache.service.js';
+import { ProductCardService } from '../src/modules/products/services/product-card.service.js';
 import { queryCountLogger } from './query-count.logger.js';
 
 const FIXTURE_COUNT = 50;

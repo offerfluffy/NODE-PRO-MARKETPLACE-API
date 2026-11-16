@@ -1,12 +1,12 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type { Redis } from 'ioredis';
-import { CACHE_REDIS } from '../redis/redis.tokens.js';
+import { CACHE_REDIS } from '../../redis/redis.tokens.js';
 import {
   productCardSchema,
   type ProductCardDto,
-} from './dto/product-card.dto.js';
-import { UNLOCK_LUA } from '../redis/redis.scripts.js';
+} from '../dto/product-card.dto.js';
+import { UNLOCK_LUA } from '../../redis/redis.scripts.js';
 
 const BASE_TTL_SECONDS = 300;
 const TTL_JITTER_SECONDS = 60;

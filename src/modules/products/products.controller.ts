@@ -10,9 +10,9 @@ import {
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { postgresBigintIdSchema } from '../orders/dto/create-order.dto.js';
 import type { ProductCardDto } from './dto/product-card.dto.js';
-import { ProductCardService } from './product-card.service.js';
+import { ProductCardService } from './services/product-card.service.js';
 import { ProductRateLimitGuard } from '../rate-limit/product-rate-limit.guard.js';
-import { ProductsService } from './products.service.js';
+import { ProductsService } from './services/products.service.js';
 import { AccessTokenGuard } from '../auth/guards/access-token.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
