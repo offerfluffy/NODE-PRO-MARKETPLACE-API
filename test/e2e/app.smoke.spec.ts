@@ -18,13 +18,36 @@ import { RefreshToken } from '../../src/modules/database/entities/refreshToken.e
 import { OrdersController } from '../../src/modules/orders/orders.controller.js';
 import { OrderEventsService } from '../../src/modules/orders/realtime/order-events.service.js';
 import { CheckoutService } from '../../src/modules/orders/services/checkout/index.js';
+import { AuthTokenService } from '../../src/modules/auth/auth-token.service.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;
+  let customerOneAccessToken: string;
+  let customerTwoAccessToken: string;
 
   beforeAll(async () => {
     context = await startTestApplication();
     await seedDatabase(context.dataSource);
+
+    const users = context.dataSource.getRepository(User);
+    const [customerOne, customerTwo] = await Promise.all([
+      users.findOneByOrFail({
+        email: 'customer.one@example.com',
+      }),
+      users.findOneByOrFail({
+        email: 'customer.two@example.com',
+      }),
+    ]);
+    const tokenService = context.app.get(AuthTokenService);
+
+    customerOneAccessToken = await tokenService.signAccess({
+      userId: customerOne.id,
+      role: customerOne.role,
+    });
+    customerTwoAccessToken = await tokenService.signAccess({
+      userId: customerTwo.id,
+      role: customerTwo.role,
+    });
   });
 
   afterAll(async () => {
@@ -121,6 +144,12 @@ describe('Application E2E', () => {
     await request(context.app.getHttpServer())
       .post('/auth/refresh')
       .set('Cookie', r2)
+      .expect(401);
+  });
+
+  it('rejects anonymous order requests', async () => {
+    await request(context.app.getHttpServer())
+      .get('/orders/999999')
       .expect(401);
   });
 
