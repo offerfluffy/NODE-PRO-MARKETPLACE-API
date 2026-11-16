@@ -4,6 +4,8 @@ import { RefreshTokensRepository } from '../../database/repositories/refresh-tok
 import { verifyPassword } from '../utils/password.js';
 import { AuthTokenService } from './auth-token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
+import type { AccessTokenClaims } from '../types/auth.types.js';
+import { AccessDenylistService } from './access-denylist.service.js';
 
 const DUMMY_PASSWORD_HASH =
   'scrypt$16384$8$1$6Qegkh8QDR9b1cDXiSD/ww==$Bgp/1yXlpcIZynbb05Hu7M/GuVz6hJr4IKu7N5EqHAU=';
@@ -28,6 +30,7 @@ export class AuthService {
     private readonly refreshTokens: RefreshTokensRepository,
     private readonly accessTokens: AuthTokenService,
     private readonly refreshTokenService: RefreshTokenService,
+    private readonly accessDenylist: AccessDenylistService,
   ) {}
 
   async login(input: LoginInput): Promise<TokenPairResult> {
@@ -61,6 +64,19 @@ export class AuthService {
       refreshToken: refresh.token,
       refreshExpiresAt: refresh.expiresAt,
     };
+  }
+
+  async logout(
+    claims: AccessTokenClaims,
+    rawRefreshToken?: string,
+  ): Promise<void> {
+    if (rawRefreshToken) {
+      const tokenHash = this.refreshTokenService.hash(rawRefreshToken);
+
+      await this.refreshTokens.revokeFamilyByTokenHash(tokenHash, claims.sub);
+    }
+
+    await this.accessDenylist.revoke(claims);
   }
 
   async refresh(rawRefreshToken: string): Promise<TokenPairResult> {
