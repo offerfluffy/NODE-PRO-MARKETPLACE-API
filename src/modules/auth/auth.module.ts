@@ -10,6 +10,7 @@ import { AuthController } from './auth.controller.js';
 import { AccessTokenGuard } from './guards/access-token.guard.js';
 import { RedisModule } from '../redis/redis.module.js';
 import { AccessDenylistService } from './services/access-denylist.service.js';
+import { RolesGuard } from './guards/roles.guard.js';
 
 @Module({
   imports: [DatabaseModule, RedisModule],
@@ -31,12 +32,14 @@ import { AccessDenylistService } from './services/access-denylist.service.js';
     AuthService,
     AccessTokenGuard,
     AccessDenylistService,
+    RolesGuard,
   ],
   exports: [
     AuthTokenService,
     RefreshTokenService,
     AccessTokenGuard,
     AccessDenylistService,
+    RolesGuard,
   ],
 })
 export class AuthModule {}
