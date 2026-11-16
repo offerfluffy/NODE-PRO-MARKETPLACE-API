@@ -7,6 +7,7 @@ import { AuthTokenService } from './auth-token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
 import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
+import { AccessTokenGuard } from './access-token.guard.js';
 
 @Module({
   imports: [DatabaseModule],
@@ -26,7 +27,8 @@ import { AuthController } from './auth.controller.js';
     AuthTokenService,
     RefreshTokenService,
     AuthService,
+    AccessTokenGuard,
   ],
-  exports: [AuthTokenService, RefreshTokenService],
+  exports: [AuthTokenService, RefreshTokenService, AccessTokenGuard],
 })
 export class AuthModule {}
