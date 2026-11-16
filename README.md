@@ -148,15 +148,17 @@ npx @redocly/cli bundle openapi/openapi.yaml -o spec.json
    docker compose up -d --wait
    ```
 
-3. Запусти API в цьому терміналі:
+3. Запусти API в цьому терміналі через сховище секретів:
 
    ```bash
-   npm run start
+   npm run start:vault
    ```
 
-   Команда збирає проєкт, запускає його через
-   `scripts/with-secrets.sh dev` і отримує конфігурацію з Infisical. Для
-   розробки з автоматичним перезапуском є `npm run start:dev`.
+   `start:vault` збирає проєкт, запускає його через
+   `scripts/with-secrets.sh dev` і отримує конфігурацію з Infisical. Голий
+   `npm run start` навмисно не викликає сховище та завершується помилкою, якщо
+   обов'язкові auth-секрети не передані в оточенні. Для розробки з автоматичним
+   перезапуском є `npm run start:dev`.
 
 4. В іншому терміналі перевір API та з'єднання з БД:
 
@@ -1038,6 +1040,111 @@ scheduled-runs=2
 `upsertJobScheduler` з одним scheduler ID. У Redis залишається один scheduler,
 який виконав щонайменше дві заплановані задачі.
 
+## Auth
+
+### Модель токенів і джерела секретів
+
+Логін повертає 10-хвилинний ES256 access JWT у JSON. Refresh-токен є
+непрозорим випадковим 32-байтовим рядком із TTL 30 днів і передається лише в
+cookie з `HttpOnly`, `SameSite=Strict`, `Secure` у production та
+`Path=/auth`. У PostgreSQL зберігається не сам refresh-токен, а його
+HMAC-SHA-256 із pepper, тому дамп таблиці не містить готових токенів сесій.
+
+| Змінна                 | Призначення                                  | Джерело                 | Формат                    |
+| ---------------------- | -------------------------------------------- | ----------------------- | ------------------------- |
+| `JWT_PRIVATE_KEY`      | Підпис access-токенів                        | сховище Infisical (#11) | base64 PEM PKCS8          |
+| `JWT_PUBLIC_KEY`       | Перевірка підпису access-токенів             | сховище Infisical (#11) | base64 PEM SPKI           |
+| `JWT_KID`              | Ідентифікатор активної пари ключів у JWT     | сховище Infisical (#11) | непорожній рядок          |
+| `REFRESH_TOKEN_PEPPER` | HMAC-key для хешування opaque refresh-токена | сховище Infisical (#11) | випадкові щонайменше 32 B |
+
+### Підпис і перевірка
+
+Access-токени підписуються алгоритмом ES256. Приватний ключ має лише
+auth-компонент, тому тільки він може випускати токени. Інші компоненти можуть
+отримати публічний ключ і перевіряти підпис, але не можуть створювати власні
+токени. ES256 обрано як сучасний асиметричний алгоритм із компактними ключами
+та підписами; він рекомендований замість RS256 у настановах до цього завдання.
+Параметр `algorithms: ['ES256']` заданий явно, тому неперевірене поле `alg` із
+заголовка JWT не може змусити бібліотеку використати інший алгоритм.
+
+### Refresh rotation і reuse detection
+
+Кожен успішний refresh в одній PostgreSQL-транзакції позначає старий токен як
+використаний і створює наступний токен із тим самим `family_id`. Рядок
+блокується через `SELECT ... FOR UPDATE`, тому паралельні спроби не можуть
+одночасно успішно повернути дві нові пари. Повторне пред'явлення використаного
+токена вважається сигналом компрометації та встановлює `revoked_at` для всієї
+сім'ї.
+
+Frontend серіалізує оновлення токена за допомогою single-flight Promise.
+Перший запит, який отримав `401`, створює refresh-запит, а всі інші запити
+очікують той самий Promise. Після завершення Promise очищається, а початкові
+запити повторюються з новим access-токеном. Це запобігає помилковому reuse
+detection через два паралельні refresh-запити.
+
+### Чому logout — це дві дії
+
+Logout відкликає refresh-сім'ю через `revoked_at` у PostgreSQL, тому вона не
+може випустити нові токени. Поточний access-токен залишається криптографічно
+валідним до `exp`, тому його `jti` записується в Redis-денилист із TTL, що
+дорівнює залишку життя токена. Якщо відкликати лише access, чинний refresh
+одразу випустить новий access; якщо відкликати лише refresh, старий access
+працюватиме до `exp`.
+
+PostgreSQL і Redis є двома незалежними сховищами, тому ці записи є dual write,
+а не атомарною транзакцією. Збій одного сховища може спричинити частковий
+logout; реалізація не називає цю операцію атомарною.
+
+### 401, 403, RBAC і ownership
+
+Відсутній, прострочений, пошкоджений або відкликаний access-токен дає `401`.
+Валідний токен без потрібної ролі або права власності дає `403`. Запис у
+`POST /products` дозволений ролям `seller` та `admin`; `customer` отримує
+`403`.
+
+Перевірка власності виконується в `OrdersController.findById()` після того, як
+`OrdersService` завантажив замовлення. Контролер порівнює
+`order.customer_id` із перевіреним `sub` access-токена. Guard не має даних
+самого ресурсу; щоб перевірити власника, йому довелося б окремо звернутися до
+бази, а потім замовлення завантажувалося б повторно в сервісі.
+
+Роль у JWT є кешованим знімком прав на момент видачі токена, а не актуальним
+джерелом правди. Якщо адміністратора розжалувати в базі, його старий
+access-токен усе ще міститиме `role: admin` і збереже ці права до `exp`. У
+поточній конфігурації максимальне вікно становить 10 хвилин; для термінового
+відкликання конкретний `jti` можна додати в денилист.
+
+### Ротація ключів і `kid`
+
+Поточна курсова реалізація завантажує одну активну пару ключів. Для production
+overlap-ротації потрібен key ring `kid → public key`: нові токени підписуються
+новим приватним ключем, а старий публічний ключ залишається доступним
+щонайменше до завершення максимального TTL раніше випущених access-токенів.
+`kid` дозволяє верифікатору вибрати правильний публічний ключ; після завершення
+overlap-вікна старий ключ можна видалити. Такий key ring ще не реалізований у
+цьому курсовому API, тому заміна єдиної активної пари одразу інвалідує старі
+access-токени.
+
+SHA-256 fingerprints обчислені з DER-представлення відповідного SPKI public
+key; самі ключі в README не зберігаються:
+
+| Environment | Public-key fingerprint SHA-256                                     |
+| ----------- | ------------------------------------------------------------------ |
+| `dev`       | `28049cb662c3d7e2416b77d6970f7630f97953772e7bc5311a3c30604cdeb763` |
+| `prod`      | `4348a9a33ac8277d679246ada945666b7a5dc1a0483bec275c216d37fe42dd56` |
+
+### Auth demos
+
+Кожне демо піднімає застосунок на власному порті, очищає свої сесії та fixture
+rows, перевіряє очікувані HTTP-статуси й завершується з ненульовим кодом при
+порушенні інваріанта:
+
+```bash
+npm run demo:auth
+npm run demo:reuse
+npm run demo:rbac
+```
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
@@ -1058,6 +1165,23 @@ export PORT=3000
 export BROKER_URL=amqp://app:app@127.0.0.1:21140
 export REDIS_URL=redis://127.0.0.1:21150
 export REDIS_QUEUE_URL=redis://127.0.0.1:21160
+
+# One-time ES256 pair for the grader. PEM values are transported as base64.
+node -e '
+const {generateKeyPairSync}=require("node:crypto");
+const {writeFileSync}=require("node:fs");
+const pair=generateKeyPairSync("ec",{
+  namedCurve:"P-256",
+  privateKeyEncoding:{type:"pkcs8",format:"pem"},
+  publicKeyEncoding:{type:"spki",format:"pem"}
+});
+writeFileSync("/tmp/marketplace-auth-private.b64",Buffer.from(pair.privateKey).toString("base64"));
+writeFileSync("/tmp/marketplace-auth-public.b64",Buffer.from(pair.publicKey).toString("base64"));
+'
+export JWT_PRIVATE_KEY="$(cat /tmp/marketplace-auth-private.b64)"
+export JWT_PUBLIC_KEY="$(cat /tmp/marketplace-auth-public.b64)"
+export JWT_KID=grader-es256-1
+export REFRESH_TOKEN_PEPPER="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64"))')"
 
 export DB_HOST=127.0.0.1
 export DB_PORT=21110
@@ -1090,6 +1214,9 @@ npm run demo:cache
 npm run demo:session
 npm run demo:ratelimit
 npm run demo:queue
+npm run demo:auth
+npm run demo:reuse
+npm run demo:rbac
 
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh

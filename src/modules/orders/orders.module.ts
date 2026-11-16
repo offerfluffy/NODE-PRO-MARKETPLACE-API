@@ -12,9 +12,10 @@ import { OrderEventsService } from './realtime/order-events.service.js';
 import { OrdersGateway } from './realtime/orders.gateway.js';
 import { MessagingModule } from '../messaging/messaging.module.js';
 import { ProductsModule } from '../products/products.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
-  imports: [DatabaseModule, MessagingModule, ProductsModule],
+  imports: [DatabaseModule, MessagingModule, ProductsModule, AuthModule],
   controllers: [OrdersController],
   providers: [
     {

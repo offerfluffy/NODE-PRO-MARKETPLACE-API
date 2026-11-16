@@ -12,18 +12,53 @@ import {
   OrderStatus,
 } from '../../src/modules/database/entities/order.entity.js';
 import { Inventory } from '../../src/modules/database/entities/inventory.entity.js';
-import { Product } from '../../src/modules/database/entities/product.entity.js';
+import {
+  Product,
+  ProductStatus,
+} from '../../src/modules/database/entities/product.entity.js';
 import { User } from '../../src/modules/database/entities/user.entity.js';
+import { RefreshToken } from '../../src/modules/database/entities/refreshToken.entity.js';
 import { OrdersController } from '../../src/modules/orders/orders.controller.js';
 import { OrderEventsService } from '../../src/modules/orders/realtime/order-events.service.js';
 import { CheckoutService } from '../../src/modules/orders/services/checkout/index.js';
+import { AuthTokenService } from '../../src/modules/auth/services/auth-token.service.js';
 
 describe('Application E2E', () => {
   let context: TestApplication;
+  let customerOneAccessToken: string;
+  let customerTwoAccessToken: string;
+  let sellerOneAccessToken: string;
 
   beforeAll(async () => {
     context = await startTestApplication();
     await seedDatabase(context.dataSource);
+
+    const users = context.dataSource.getRepository(User);
+    const [customerOne, customerTwo, sellerOne] = await Promise.all([
+      users.findOneByOrFail({
+        email: 'customer.one@example.com',
+      }),
+      users.findOneByOrFail({
+        email: 'customer.two@example.com',
+      }),
+      users.findOneByOrFail({
+        email: 'seller.one@example.com',
+      }),
+    ]);
+    const tokenService = context.app.get(AuthTokenService);
+
+    customerOneAccessToken = await tokenService.signAccess({
+      userId: customerOne.id,
+      role: customerOne.role,
+    });
+    customerTwoAccessToken = await tokenService.signAccess({
+      userId: customerTwo.id,
+      role: customerTwo.role,
+    });
+    sellerOneAccessToken = await tokenService.signAccess({
+      userId: sellerOne.id,
+      role: sellerOne.role,
+    });
   });
 
   afterAll(async () => {
@@ -40,9 +75,139 @@ describe('Application E2E', () => {
     expect(response.body.current_user).toBe(context.container.getUsername());
   });
 
+  it('logs in and keeps refresh outside JSON', async () => {
+    const response = await request(context.app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'customer.one@example.com',
+        password: 'demo-password',
+      })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      accessToken: expect.any(String),
+    });
+    expect(response.body).not.toHaveProperty('refreshToken');
+
+    const setCookie = response.headers['set-cookie']?.[0];
+
+    expect(setCookie).toBeDefined();
+
+    if (!setCookie) {
+      throw new Error('Login did not set a refresh cookie');
+    }
+
+    expect(setCookie).toContain('refresh_token=');
+    expect(setCookie).toContain('HttpOnly');
+    expect(setCookie).toContain('SameSite=Strict');
+    expect(setCookie).toContain('Path=/auth');
+
+    const rawRefresh = /refresh_token=([^;]+)/.exec(setCookie)?.[1];
+
+    expect(rawRefresh).toBeDefined();
+
+    const storedTokens = await context.dataSource
+      .getRepository(RefreshToken)
+      .find();
+
+    expect(storedTokens).toHaveLength(1);
+    expect(storedTokens[0].tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(storedTokens[0].tokenHash).not.toBe(rawRefresh);
+  });
+
+  it('revokes the refresh family when R1 is reused', async () => {
+    const login = await request(context.app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'customer.two@example.com',
+        password: 'demo-password',
+      })
+      .expect(200);
+
+    const r1 = login.headers['set-cookie']?.[0]?.split(';')[0];
+
+    if (!r1) {
+      throw new Error('Login did not return R1 cookie');
+    }
+
+    const firstRefresh = await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', r1)
+      .expect(200);
+
+    expect(firstRefresh.body).toEqual({
+      accessToken: expect.any(String),
+    });
+
+    const r2 = firstRefresh.headers['set-cookie']?.[0]?.split(';')[0];
+
+    if (!r2) {
+      throw new Error('Refresh did not return R2 cookie');
+    }
+
+    expect(r2).not.toBe(r1);
+
+    await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', r1)
+      .expect(401);
+
+    await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', r2)
+      .expect(401);
+  });
+
+  it('revokes both access and refresh tokens on logout', async () => {
+    const login = await request(context.app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        email: 'customer.one@example.com',
+        password: 'demo-password',
+      })
+      .expect(200);
+
+    const accessToken = login.body.accessToken as string;
+    const refreshCookie = login.headers['set-cookie']?.[0]?.split(';')[0];
+
+    if (!refreshCookie) {
+      throw new Error('Login did not return a refresh cookie');
+    }
+
+    await request(context.app.getHttpServer())
+      .get('/orders/999999')
+      .auth(accessToken, { type: 'bearer' })
+      .expect(404);
+
+    const logout = await request(context.app.getHttpServer())
+      .post('/auth/logout')
+      .auth(accessToken, { type: 'bearer' })
+      .set('Cookie', refreshCookie)
+      .expect(204);
+
+    expect(logout.headers['set-cookie']?.[0]).toContain('refresh_token=;');
+
+    await request(context.app.getHttpServer())
+      .get('/orders/999999')
+      .auth(accessToken, { type: 'bearer' })
+      .expect(401);
+
+    await request(context.app.getHttpServer())
+      .post('/auth/refresh')
+      .set('Cookie', refreshCookie)
+      .expect(401);
+  });
+
+  it('rejects anonymous order requests', async () => {
+    await request(context.app.getHttpServer())
+      .get('/orders/999999')
+      .expect(401);
+  });
+
   it('returns 404 when an order does not exist', async () => {
     const response = await request(context.app.getHttpServer())
       .get('/orders/999999')
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .expect(404);
 
     expect(response.body).toMatchObject({
@@ -60,6 +225,7 @@ describe('Application E2E', () => {
 
     const response = await request(context.app.getHttpServer())
       .get(`/orders/${seededOrder.id}`)
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .expect(200);
 
     expect(response.body).toEqual({
@@ -82,6 +248,68 @@ describe('Application E2E', () => {
     });
   });
 
+  it('returns 403 when a customer requests another customer order', async () => {
+    const seededOrder = await context.dataSource
+      .getRepository(Order)
+      .findOneByOrFail({
+        idempotencyKey: 'seed-order-001',
+      });
+
+    await request(context.app.getHttpServer())
+      .get(`/orders/${seededOrder.id}`)
+      .auth(customerTwoAccessToken, { type: 'bearer' })
+      .expect(403);
+  });
+
+  it('enforces product-write roles and rejects a tampered access token', async () => {
+    const body = {
+      name: 'E2E RBAC Product',
+      description: 'Created by the RBAC E2E test',
+      price_cents: 12_900,
+      quantity_available: 7,
+      status: ProductStatus.ACTIVE,
+      image_url: null,
+    };
+
+    await request(context.app.getHttpServer())
+      .post('/products')
+      .send(body)
+      .expect(401);
+
+    await request(context.app.getHttpServer())
+      .post('/products')
+      .auth(customerOneAccessToken, { type: 'bearer' })
+      .send(body)
+      .expect(403);
+
+    await request(context.app.getHttpServer())
+      .post('/products')
+      .auth(tamperRole(customerOneAccessToken), { type: 'bearer' })
+      .send(body)
+      .expect(401);
+
+    const response = await request(context.app.getHttpServer())
+      .post('/products')
+      .auth(sellerOneAccessToken, { type: 'bearer' })
+      .send(body)
+      .expect(201);
+
+    const product = await context.dataSource
+      .getRepository(Product)
+      .findOneOrFail({
+        where: { id: response.body.id as string },
+        relations: {
+          seller: true,
+          inventory: true,
+        },
+      });
+
+    expect(product.seller.email).toBe('seller.one@example.com');
+    expect(product.inventory.quantityAvailable).toBe(7);
+
+    await context.dataSource.getRepository(Product).delete(product.id);
+  });
+
   it('updates an order status and returns no content', async () => {
     const orderRepository = context.dataSource.getRepository(Order);
     const seededOrder = await orderRepository.findOneByOrFail({
@@ -90,6 +318,7 @@ describe('Application E2E', () => {
 
     const response = await request(context.app.getHttpServer())
       .patch(`/orders/${seededOrder.id}/status`)
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .send({ status: OrderStatus.PAID })
       .expect(204);
 
@@ -169,6 +398,7 @@ describe('Application E2E', () => {
   it('returns 404 when updating a missing order', async () => {
     const response = await request(context.app.getHttpServer())
       .patch('/orders/999999/status')
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .send({ status: OrderStatus.PAID })
       .expect(404);
 
@@ -186,6 +416,7 @@ describe('Application E2E', () => {
 
     const response = await request(context.app.getHttpServer())
       .patch(`/orders/${seededOrder.id}/status`)
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .send({ status: 'unknown' })
       .expect(400);
 
@@ -232,7 +463,6 @@ describe('Application E2E', () => {
     const totalCents = keyboard.priceCents + mouse.priceCents * 2;
     const idempotencyKey = 'e2e-create-read-order';
     const requestBody = {
-      customer_id: customer.id,
       items: [
         { product_id: mouse.id, quantity: 2 },
         { product_id: keyboard.id, quantity: 1 },
@@ -267,6 +497,7 @@ describe('Application E2E', () => {
 
     const createResponse = await request(context.app.getHttpServer())
       .post('/orders')
+      .auth(customerTwoAccessToken, { type: 'bearer' })
       .set('Idempotency-Key', idempotencyKey)
       .send(requestBody)
       .expect(201);
@@ -281,6 +512,7 @@ describe('Application E2E', () => {
 
     const readResponse = await request(context.app.getHttpServer())
       .get(`/orders/${createResponse.body.id}`)
+      .auth(customerTwoAccessToken, { type: 'bearer' })
       .expect(200);
 
     expect(readResponse.body).toEqual(createResponse.body);
@@ -311,6 +543,7 @@ describe('Application E2E', () => {
 
     const retryResponse = await request(context.app.getHttpServer())
       .post('/orders')
+      .auth(customerTwoAccessToken, { type: 'bearer' })
       .set('Idempotency-Key', idempotencyKey)
       .send(requestBody)
       .expect(201);
@@ -376,3 +609,20 @@ describe('Application E2E', () => {
     expect(retriedCheckout.createdAt).toEqual(firstCheckout.createdAt);
   });
 });
+
+function tamperRole(accessToken: string): string {
+  const parts = accessToken.split('.');
+
+  if (parts.length !== 3) {
+    throw new Error('Access token is not a JWT');
+  }
+
+  const payload = JSON.parse(
+    Buffer.from(parts[1], 'base64url').toString('utf8'),
+  ) as Record<string, unknown>;
+
+  payload.role = 'admin';
+  parts[1] = Buffer.from(JSON.stringify(payload)).toString('base64url');
+
+  return parts.join('.');
+}

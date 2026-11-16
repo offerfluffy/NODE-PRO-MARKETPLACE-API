@@ -6,7 +6,6 @@ import {
 
 const createOrderRequestSchema = z
   .strictObject({
-    customer_id: z.unknown(),
     items: z.array(
       z.strictObject({
         product_id: z.unknown(),
@@ -15,7 +14,6 @@ const createOrderRequestSchema = z
     ),
   })
   .transform((order) => ({
-    customerId: order.customer_id,
     items: order.items.map((item) => ({
       productId: item.product_id,
       quantity: item.quantity,
@@ -24,7 +22,6 @@ const createOrderRequestSchema = z
 
 export const createOrderSchema = createOrderRequestSchema.pipe(
   z.strictObject({
-    customerId: postgresBigintIdSchema,
     items: checkoutItemsSchema,
   }),
 );
