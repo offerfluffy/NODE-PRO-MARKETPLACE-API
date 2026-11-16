@@ -7,9 +7,12 @@ import { ProductsController } from './products.controller.js';
 import { RedisModule } from '../redis/redis.module.js';
 import { ProductCardCacheService } from './product-card-cache.service.js';
 import { RateLimitModule } from '../rate-limit/rate-limit.module.js';
+import { ProductsRepository } from '../database/repositories/products.repository.js';
+import { AuthModule } from '../auth/auth.module.js';
+import { ProductsService } from './products.service.js';
 
 @Module({
-  imports: [DatabaseModule, RedisModule, RateLimitModule],
+  imports: [DatabaseModule, RedisModule, RateLimitModule, AuthModule],
   providers: [
     {
       provide: ProductCardRepository,
@@ -17,8 +20,15 @@ import { RateLimitModule } from '../rate-limit/rate-limit.module.js';
       useFactory: (dataSource: DataSource) =>
         new ProductCardRepository(dataSource),
     },
+    {
+      provide: ProductsRepository,
+      inject: [DataSource],
+      useFactory: (dataSource: DataSource) =>
+        new ProductsRepository(dataSource),
+    },
     ProductCardCacheService,
     ProductCardService,
+    ProductsService,
   ],
   controllers: [ProductsController],
   exports: [ProductCardCacheService],
