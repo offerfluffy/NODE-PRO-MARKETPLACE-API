@@ -156,6 +156,7 @@ describe('Application E2E', () => {
   it('returns 404 when an order does not exist', async () => {
     const response = await request(context.app.getHttpServer())
       .get('/orders/999999')
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .expect(404);
 
     expect(response.body).toMatchObject({
@@ -173,6 +174,7 @@ describe('Application E2E', () => {
 
     const response = await request(context.app.getHttpServer())
       .get(`/orders/${seededOrder.id}`)
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .expect(200);
 
     expect(response.body).toEqual({
@@ -203,6 +205,7 @@ describe('Application E2E', () => {
 
     const response = await request(context.app.getHttpServer())
       .patch(`/orders/${seededOrder.id}/status`)
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .send({ status: OrderStatus.PAID })
       .expect(204);
 
@@ -282,6 +285,7 @@ describe('Application E2E', () => {
   it('returns 404 when updating a missing order', async () => {
     const response = await request(context.app.getHttpServer())
       .patch('/orders/999999/status')
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .send({ status: OrderStatus.PAID })
       .expect(404);
 
@@ -299,6 +303,7 @@ describe('Application E2E', () => {
 
     const response = await request(context.app.getHttpServer())
       .patch(`/orders/${seededOrder.id}/status`)
+      .auth(customerOneAccessToken, { type: 'bearer' })
       .send({ status: 'unknown' })
       .expect(400);
 
@@ -345,7 +350,6 @@ describe('Application E2E', () => {
     const totalCents = keyboard.priceCents + mouse.priceCents * 2;
     const idempotencyKey = 'e2e-create-read-order';
     const requestBody = {
-      customer_id: customer.id,
       items: [
         { product_id: mouse.id, quantity: 2 },
         { product_id: keyboard.id, quantity: 1 },
@@ -380,6 +384,7 @@ describe('Application E2E', () => {
 
     const createResponse = await request(context.app.getHttpServer())
       .post('/orders')
+      .auth(customerTwoAccessToken, { type: 'bearer' })
       .set('Idempotency-Key', idempotencyKey)
       .send(requestBody)
       .expect(201);
@@ -394,6 +399,7 @@ describe('Application E2E', () => {
 
     const readResponse = await request(context.app.getHttpServer())
       .get(`/orders/${createResponse.body.id}`)
+      .auth(customerTwoAccessToken, { type: 'bearer' })
       .expect(200);
 
     expect(readResponse.body).toEqual(createResponse.body);
@@ -424,6 +430,7 @@ describe('Application E2E', () => {
 
     const retryResponse = await request(context.app.getHttpServer())
       .post('/orders')
+      .auth(customerTwoAccessToken, { type: 'bearer' })
       .set('Idempotency-Key', idempotencyKey)
       .send(requestBody)
       .expect(201);
