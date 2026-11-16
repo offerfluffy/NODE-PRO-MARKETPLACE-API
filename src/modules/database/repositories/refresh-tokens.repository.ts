@@ -121,4 +121,37 @@ export class RefreshTokensRepository {
       };
     });
   }
+
+  async revokeFamilyByTokenHash(
+    tokenHash: string,
+    userId: string,
+  ): Promise<boolean> {
+    return this.dataSource.transaction(async (manager) => {
+      const tokens = manager.getRepository(RefreshToken);
+
+      const current = await tokens
+        .createQueryBuilder('refresh')
+        .innerJoin('refresh.user', 'user')
+        .where('refresh.tokenHash = :tokenHash', { tokenHash })
+        .andWhere('user.id = :userId', { userId })
+        .setLock('pessimistic_write', undefined, ['refresh'])
+        .getOne();
+
+      if (!current) {
+        return false;
+      }
+
+      await tokens
+        .createQueryBuilder()
+        .update(RefreshToken)
+        .set({ revokedAt: new Date() })
+        .where('family_id = :familyId', {
+          familyId: current.familyId,
+        })
+        .andWhere('revoked_at IS NULL')
+        .execute();
+
+      return true;
+    });
+  }
 }
