@@ -12,7 +12,10 @@ import {
   OrderStatus,
 } from '../../src/modules/database/entities/order.entity.js';
 import { Inventory } from '../../src/modules/database/entities/inventory.entity.js';
-import { Product } from '../../src/modules/database/entities/product.entity.js';
+import {
+  Product,
+  ProductStatus,
+} from '../../src/modules/database/entities/product.entity.js';
 import { User } from '../../src/modules/database/entities/user.entity.js';
 import { RefreshToken } from '../../src/modules/database/entities/refreshToken.entity.js';
 import { OrdersController } from '../../src/modules/orders/orders.controller.js';
@@ -24,18 +27,22 @@ describe('Application E2E', () => {
   let context: TestApplication;
   let customerOneAccessToken: string;
   let customerTwoAccessToken: string;
+  let sellerOneAccessToken: string;
 
   beforeAll(async () => {
     context = await startTestApplication();
     await seedDatabase(context.dataSource);
 
     const users = context.dataSource.getRepository(User);
-    const [customerOne, customerTwo] = await Promise.all([
+    const [customerOne, customerTwo, sellerOne] = await Promise.all([
       users.findOneByOrFail({
         email: 'customer.one@example.com',
       }),
       users.findOneByOrFail({
         email: 'customer.two@example.com',
+      }),
+      users.findOneByOrFail({
+        email: 'seller.one@example.com',
       }),
     ]);
     const tokenService = context.app.get(AuthTokenService);
@@ -47,6 +54,10 @@ describe('Application E2E', () => {
     customerTwoAccessToken = await tokenService.signAccess({
       userId: customerTwo.id,
       role: customerTwo.role,
+    });
+    sellerOneAccessToken = await tokenService.signAccess({
+      userId: sellerOne.id,
+      role: sellerOne.role,
     });
   });
 
@@ -235,6 +246,68 @@ describe('Application E2E', () => {
         },
       ],
     });
+  });
+
+  it('returns 403 when a customer requests another customer order', async () => {
+    const seededOrder = await context.dataSource
+      .getRepository(Order)
+      .findOneByOrFail({
+        idempotencyKey: 'seed-order-001',
+      });
+
+    await request(context.app.getHttpServer())
+      .get(`/orders/${seededOrder.id}`)
+      .auth(customerTwoAccessToken, { type: 'bearer' })
+      .expect(403);
+  });
+
+  it('enforces product-write roles and rejects a tampered access token', async () => {
+    const body = {
+      name: 'E2E RBAC Product',
+      description: 'Created by the RBAC E2E test',
+      price_cents: 12_900,
+      quantity_available: 7,
+      status: ProductStatus.ACTIVE,
+      image_url: null,
+    };
+
+    await request(context.app.getHttpServer())
+      .post('/products')
+      .send(body)
+      .expect(401);
+
+    await request(context.app.getHttpServer())
+      .post('/products')
+      .auth(customerOneAccessToken, { type: 'bearer' })
+      .send(body)
+      .expect(403);
+
+    await request(context.app.getHttpServer())
+      .post('/products')
+      .auth(tamperRole(customerOneAccessToken), { type: 'bearer' })
+      .send(body)
+      .expect(401);
+
+    const response = await request(context.app.getHttpServer())
+      .post('/products')
+      .auth(sellerOneAccessToken, { type: 'bearer' })
+      .send(body)
+      .expect(201);
+
+    const product = await context.dataSource
+      .getRepository(Product)
+      .findOneOrFail({
+        where: { id: response.body.id as string },
+        relations: {
+          seller: true,
+          inventory: true,
+        },
+      });
+
+    expect(product.seller.email).toBe('seller.one@example.com');
+    expect(product.inventory.quantityAvailable).toBe(7);
+
+    await context.dataSource.getRepository(Product).delete(product.id);
   });
 
   it('updates an order status and returns no content', async () => {
@@ -536,3 +609,20 @@ describe('Application E2E', () => {
     expect(retriedCheckout.createdAt).toEqual(firstCheckout.createdAt);
   });
 });
+
+function tamperRole(accessToken: string): string {
+  const parts = accessToken.split('.');
+
+  if (parts.length !== 3) {
+    throw new Error('Access token is not a JWT');
+  }
+
+  const payload = JSON.parse(
+    Buffer.from(parts[1], 'base64url').toString('utf8'),
+  ) as Record<string, unknown>;
+
+  payload.role = 'admin';
+  parts[1] = Buffer.from(JSON.stringify(payload)).toString('base64url');
+
+  return parts.join('.');
+}
