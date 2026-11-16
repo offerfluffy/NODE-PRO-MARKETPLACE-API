@@ -52,6 +52,7 @@ export async function startTestApplication(): Promise<TestApplication> {
     const { AppModule } = await import('../../../src/app.module.js');
     const redisStub = {
       del: async () => 0,
+      exists: async () => 0,
       quit: async () => 'OK',
     };
 
