@@ -41,6 +41,8 @@ import {
   type Observable,
 } from 'rxjs';
 import { AccessTokenGuard } from '../auth/access-token.guard.js';
+import { CurrentUser } from '../auth/current-user.decorator.js';
+import type { AccessTokenClaims } from '../auth/auth.types.js';
 
 const SSE_RETRY_MS = 1_500;
 
@@ -54,6 +56,8 @@ export class OrdersController {
 
   @Post()
   async create(
+    @CurrentUser()
+    user: AccessTokenClaims,
     @Headers('idempotency-key')
     idempotencyKeyHeader: string | undefined,
     @Body(new ZodValidationPipe(createOrderSchema))
@@ -75,6 +79,7 @@ export class OrdersController {
 
     try {
       return await this.ordersService.create({
+        customerId: user.sub,
         ...body,
         idempotencyKey: result.data,
       });
