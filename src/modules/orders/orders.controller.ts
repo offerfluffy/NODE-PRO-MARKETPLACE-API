@@ -14,6 +14,7 @@ import {
   UnauthorizedException,
   type MessageEvent,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import {
@@ -39,10 +40,12 @@ import {
   startWith,
   type Observable,
 } from 'rxjs';
+import { AccessTokenGuard } from '../auth/access-token.guard.js';
 
 const SSE_RETRY_MS = 1_500;
 
 @Controller('orders')
+@UseGuards(AccessTokenGuard)
 export class OrdersController {
   constructor(
     private readonly ordersService: OrdersService,
