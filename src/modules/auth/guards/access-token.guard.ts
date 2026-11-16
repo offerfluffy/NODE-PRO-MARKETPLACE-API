@@ -4,9 +4,9 @@ import {
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { AuthenticatedRequest } from './auth-request.js';
-import { AuthTokenService } from './auth-token.service.js';
-import { AccessDenylistService } from './access-denylist.service.js';
+import type { AuthenticatedRequest } from '../types/auth-request.js';
+import { AuthTokenService } from '../services/auth-token.service.js';
+import { AccessDenylistService } from '../services/access-denylist.service.js';
 
 @Injectable()
 export class AccessTokenGuard implements CanActivate {

@@ -12,8 +12,12 @@ import { ConfigService } from '@nestjs/config';
 import type { Response } from 'express';
 import type { Env } from '../../config/env.schema.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
-import { AuthService, type TokenPairResult } from './auth.service.js';
+import {
+  AuthService,
+  type TokenPairResult,
+} from './services/auth.service.js';
 import { loginSchema, type LoginDto } from './dto/login.dto.js';
+import { readCookie } from './utils/cookie.js';
 
 export const REFRESH_COOKIE_NAME = 'refresh_token';
 
@@ -75,25 +79,5 @@ export class AuthController {
       path: '/auth',
       expires: result.refreshExpiresAt,
     });
-  }
-}
-
-function readCookie(
-  cookieHeader: string | undefined,
-  name: string,
-): string | undefined {
-  const prefix = `${name}=`;
-
-  const cookie = cookieHeader
-    ?.split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(prefix));
-
-  if (!cookie) return undefined;
-
-  try {
-    return decodeURIComponent(cookie.slice(prefix.length));
-  } catch {
-    return undefined;
   }
 }

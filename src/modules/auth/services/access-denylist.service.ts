@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { Redis } from 'ioredis';
-import { DURABLE_REDIS } from '../redis/redis.tokens.js';
-import type { AccessTokenClaims } from './auth.types.js';
+import { DURABLE_REDIS } from '../../redis/redis.tokens.js';
+import type { AccessTokenClaims } from '../types/auth.types.js';
 
 @Injectable()
 export class AccessDenylistService {

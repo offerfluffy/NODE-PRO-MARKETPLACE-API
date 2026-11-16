@@ -1,6 +1,6 @@
 import type { Request } from 'express';
 import type { AccessTokenClaims } from './auth.types.js';
 
-export type AuthenticatedRequest = Request & {
+export interface AuthenticatedRequest extends Request {
   auth?: AccessTokenClaims;
-};
+}

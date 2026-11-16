@@ -1,7 +1,7 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import type { Env } from '../../config/env.schema.js';
+import type { Env } from '../../../config/env.schema.js';
 
 const REFRESH_TOKEN_BYTES = 32;
 

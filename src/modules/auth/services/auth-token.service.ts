@@ -2,9 +2,9 @@ import { Injectable, type OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'node:crypto';
 import { importPKCS8, importSPKI, jwtVerify, SignJWT } from 'jose';
-import type { AccessTokenClaims, SignAccessInput } from './auth.types.js';
-import type { Env } from '../../config/env.schema.js';
-import { UserRole } from '../database/entities/user.entity.js';
+import type { AccessTokenClaims, SignAccessInput } from '../types/auth.types.js';
+import type { Env } from '../../../config/env.schema.js';
+import { UserRole } from '../../database/entities/user.entity.js';
 
 const JWT_ALGORITHM = 'ES256';
 const JWT_ISSUER = 'marketplace-api';

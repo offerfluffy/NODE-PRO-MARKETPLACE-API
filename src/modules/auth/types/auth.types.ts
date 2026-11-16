@@ -1,4 +1,4 @@
-import type { UserRole } from '../database/entities/user.entity.js';
+import type { UserRole } from '../../database/entities/user.entity.js';
 
 export type SignAccessInput = {
   userId: string;

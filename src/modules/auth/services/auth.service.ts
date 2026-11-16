@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { UsersRepository } from '../database/repositories/users.repository.js';
-import { RefreshTokensRepository } from '../database/repositories/refresh-tokens.repository.js';
-import { verifyPassword } from './password.js';
+import { UsersRepository } from '../../database/repositories/users.repository.js';
+import { RefreshTokensRepository } from '../../database/repositories/refresh-tokens.repository.js';
+import { verifyPassword } from '../utils/password.js';
 import { AuthTokenService } from './auth-token.service.js';
 import { RefreshTokenService } from './refresh-token.service.js';
 

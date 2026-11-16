@@ -1,8 +1,8 @@
 import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 
-const N = 16_384;
-const R = 8;
-const P = 1;
+const SCRYPT_N = 16_384;
+const SCRYPT_R = 8;
+const SCRYPT_P = 1;
 const KEY_LENGTH = 32;
 const SALT_LENGTH = 16;
 
@@ -12,9 +12,9 @@ export async function hashPassword(password: string): Promise<string> {
 
   return [
     'scrypt',
-    N,
-    R,
-    P,
+    SCRYPT_N,
+    SCRYPT_R,
+    SCRYPT_P,
     salt.toString('base64'),
     hash.toString('base64'),
   ].join('$');
@@ -32,9 +32,9 @@ export async function verifyPassword(
 
   if (
     algorithm !== 'scrypt' ||
-    Number(n) !== N ||
-    Number(r) !== R ||
-    Number(p) !== P ||
+    Number(n) !== SCRYPT_N ||
+    Number(r) !== SCRYPT_R ||
+    Number(p) !== SCRYPT_P ||
     !saltBase64 ||
     !hashBase64
   ) {
@@ -59,7 +59,7 @@ function deriveKey(password: string, salt: Buffer): Promise<Buffer> {
       password,
       salt,
       KEY_LENGTH,
-      { N, r: R, p: P },
+      { N: SCRYPT_N, r: SCRYPT_R, p: SCRYPT_P },
       (error, derivedKey) => {
         if (error) {
           reject(error);
