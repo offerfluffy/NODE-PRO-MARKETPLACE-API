@@ -8,6 +8,7 @@ import {
   REFRESH_COOKIE_NAME,
 } from '../../src/modules/auth/auth.controller.js';
 import { AuthService } from '../../src/modules/auth/services/auth.service.js';
+import { AccessTokenGuard } from '../../src/modules/auth/guards/access-token.guard.js';
 
 describe('AuthController', () => {
   it('returns access in JSON and refresh in httpOnly cookie', async () => {
@@ -37,7 +38,12 @@ describe('AuthController', () => {
           useValue: config,
         },
       ],
-    }).compile();
+    })
+      .overrideGuard(AccessTokenGuard)
+      .useValue({
+        canActivate: () => true,
+      })
+      .compile();
 
     const controller = moduleRef.get(AuthController);
 

@@ -11,6 +11,7 @@ import { RefreshTokensRepository } from '../../src/modules/database/repositories
 import { AuthTokenService } from '../../src/modules/auth/services/auth-token.service.js';
 import { RefreshTokenService } from '../../src/modules/auth/services/refresh-token.service.js';
 import { AuthService } from '../../src/modules/auth/services/auth.service.js';
+import { AccessDenylistService } from '../../src/modules/auth/services/access-denylist.service.js';
 import { hashPassword } from '../../src/modules/auth/utils/password.js';
 
 describe('AuthService', () => {
@@ -52,6 +53,12 @@ describe('AuthService', () => {
       }),
     };
 
+    const accessDenylist = {
+      revoke: jest
+        .fn<AccessDenylistService['revoke']>()
+        .mockResolvedValue(undefined),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -70,6 +77,10 @@ describe('AuthService', () => {
         {
           provide: RefreshTokenService,
           useValue: refreshTokenService,
+        },
+        {
+          provide: AccessDenylistService,
+          useValue: accessDenylist,
         },
       ],
     }).compile();
