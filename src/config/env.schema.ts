@@ -18,7 +18,8 @@ export const envSchema = z
     REDIS_URL: z.url({ protocol: /^rediss?$/ }),
     REDIS_QUEUE_URL: z.url({ protocol: /^rediss?$/ }),
     STORAGE_ENDPOINT: z.preprocess(
-      (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+      (value) =>
+        typeof value === 'string' && value.trim() === '' ? undefined : value,
       z.url({ protocol: /^https?$/ }).optional(),
     ),
     STORAGE_REGION: z.string().trim().min(1).default('us-east-1'),
