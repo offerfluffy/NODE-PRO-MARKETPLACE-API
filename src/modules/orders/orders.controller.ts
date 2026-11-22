@@ -14,6 +14,7 @@ import {
   UnauthorizedException,
   type MessageEvent,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import {
@@ -39,10 +40,14 @@ import {
   startWith,
   type Observable,
 } from 'rxjs';
+import { AccessTokenGuard } from '../auth/guards/access-token.guard.js';
+import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
+import type { AccessTokenClaims } from '../auth/types/auth.types.js';
 
 const SSE_RETRY_MS = 1_500;
 
 @Controller('orders')
+@UseGuards(AccessTokenGuard)
 export class OrdersController {
   constructor(
     private readonly ordersService: OrdersService,
@@ -51,6 +56,8 @@ export class OrdersController {
 
   @Post()
   async create(
+    @CurrentUser()
+    user: AccessTokenClaims,
     @Headers('idempotency-key')
     idempotencyKeyHeader: string | undefined,
     @Body(new ZodValidationPipe(createOrderSchema))
@@ -72,6 +79,7 @@ export class OrdersController {
 
     try {
       return await this.ordersService.create({
+        customerId: user.sub,
         ...body,
         idempotencyKey: result.data,
       });
@@ -97,6 +105,8 @@ export class OrdersController {
 
   @Get(':id')
   async findById(
+    @CurrentUser()
+    user: AccessTokenClaims,
     @Param('id', new ZodValidationPipe(postgresBigintIdSchema))
     id: string,
   ): Promise<OrderResponseDto> {
@@ -104,6 +114,12 @@ export class OrdersController {
 
     if (!order) {
       throw new NotFoundException(`Order ${id} was not found`);
+    }
+
+    if (order.customer_id !== user.sub) {
+      throw new ForbiddenException(
+        'The order does not belong to this customer',
+      );
     }
 
     return order;

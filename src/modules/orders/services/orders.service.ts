@@ -7,7 +7,7 @@ import {
 import { CheckoutService } from './checkout/index.js';
 import { OrderStatus } from '../../database/entities/order.entity.js';
 import { OrderEventsService } from '../realtime/order-events.service.js';
-import { ProductCardCacheService } from '../../products/product-card-cache.service.js';
+import { ProductCardCacheService } from '../../products/services/product-card-cache.service.js';
 
 export type CreateOrderCommand = {
   customerId: string;

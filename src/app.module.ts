@@ -7,6 +7,7 @@ import { OrdersModule } from './modules/orders/orders.module.js';
 import { RedisModule } from './modules/redis/redis.module.js';
 import { ProductsModule } from './modules/products/products.module.js';
 import { SessionsModule } from './modules/sessions/sessions.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { SessionsModule } from './modules/sessions/sessions.module.js';
     }),
     RedisModule,
     DatabaseModule,
+    AuthModule,
     OrdersModule,
     ProductsModule,
     SessionsModule,
