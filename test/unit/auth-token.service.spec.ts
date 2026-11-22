@@ -33,6 +33,11 @@ describe('AuthTokenService', () => {
       TIMEOUT_MS: 5000,
       REDIS_URL: 'redis://localhost:6379',
       REDIS_QUEUE_URL: 'redis://localhost:6380',
+      STORAGE_ENDPOINT: 'http://127.0.0.1:21170',
+      STORAGE_REGION: 'us-east-1',
+      STORAGE_BUCKET: 'marketplace-files-test',
+      STORAGE_ACCESS_KEY: 'test-storage-access-key',
+      STORAGE_SECRET_KEY: 'test-storage-secret-key',
     };
 
     service = new AuthTokenService(new ConfigService<Env, true>(env));

@@ -43,6 +43,11 @@ export async function startTestApplication(): Promise<TestApplication> {
   process.env.REFRESH_TOKEN_PEPPER = 'test-refresh-token-pepper';
   process.env.REDIS_URL = 'redis://127.0.0.1:1';
   process.env.REDIS_QUEUE_URL = 'redis://127.0.0.1:1';
+  process.env.STORAGE_ENDPOINT = 'http://127.0.0.1:21170';
+  process.env.STORAGE_REGION = 'us-east-1';
+  process.env.STORAGE_BUCKET = 'marketplace-files-test';
+  process.env.STORAGE_ACCESS_KEY = 'test-storage-access-key';
+  process.env.STORAGE_SECRET_KEY = 'test-storage-secret-key';
   process.env.LOG_LEVEL = 'error';
   process.env.TIMEOUT_MS = '5000';
   delete process.env.DB_PASSWORD_FILE;
