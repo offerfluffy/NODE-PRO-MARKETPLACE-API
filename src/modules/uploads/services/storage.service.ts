@@ -55,12 +55,10 @@ export class StorageService implements OnModuleDestroy {
           new CreateBucketCommand({ Bucket: this.bucket }),
         );
       } catch (createError: unknown) {
-        if (
-          !(
-            createError instanceof S3ServiceException &&
-            createError.$metadata.httpStatusCode === 409
-          )
-        ) {
+        if (!(
+          createError instanceof S3ServiceException &&
+          createError.$metadata.httpStatusCode === 409
+        )) {
           throw createError;
         }
       }
@@ -84,9 +82,7 @@ export class StorageService implements OnModuleDestroy {
     });
   }
 
-  async headObject(
-    key: string,
-  ): Promise<{
+  async headObject(key: string): Promise<{
     size: number;
     etag: string | null;
     contentType: string | null;
