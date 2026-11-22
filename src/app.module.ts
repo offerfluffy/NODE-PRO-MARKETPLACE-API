@@ -8,6 +8,7 @@ import { RedisModule } from './modules/redis/redis.module.js';
 import { ProductsModule } from './modules/products/products.module.js';
 import { SessionsModule } from './modules/sessions/sessions.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { UploadsModule } from './modules/uploads/uploads.module.js';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
     OrdersModule,
     ProductsModule,
     SessionsModule,
+    UploadsModule,
   ],
   controllers: [AppController],
   providers: [],
