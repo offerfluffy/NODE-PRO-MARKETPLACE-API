@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -13,6 +15,7 @@ import type { AccessTokenClaims } from '../auth/types/auth.types.js';
 import {
   commitUploadSchema,
   createUploadIntentSchema,
+  fileIdSchema,
   type CommitUploadDto,
   type CreateUploadIntentDto,
 } from './dto/upload.dto.js';
@@ -20,6 +23,7 @@ import {
   UploadsService,
   type CommitUploadResult,
   type CreateUploadIntentResult,
+  type GetUploadPartsResult,
 } from './services/uploads.service.js';
 
 @Controller('uploads')
@@ -39,6 +43,18 @@ export class UploadsController {
       userId: user.sub,
       contentType: body.contentType,
       size: body.size,
+    });
+  }
+
+  @Get(':fileId/parts')
+  getParts(
+    @CurrentUser() user: AccessTokenClaims,
+    @Param('fileId', new ZodValidationPipe(fileIdSchema))
+    fileId: string,
+  ): Promise<GetUploadPartsResult> {
+    return this.uploadsService.getParts({
+      userId: user.sub,
+      fileId,
     });
   }
 

@@ -17,10 +17,12 @@ export const createUploadIntentSchema = z.object({
 
 export type CreateUploadIntentDto = z.infer<typeof createUploadIntentSchema>;
 
+export const fileIdSchema = z
+  .string()
+  .regex(/^[1-9]\d*$/, 'fileId must be a positive integer string');
+
 export const commitUploadSchema = z.object({
-  fileId: z
-    .string()
-    .regex(/^[1-9]\d*$/, 'fileId must be a positive integer string'),
+  fileId: fileIdSchema,
 });
 
 export type CommitUploadDto = z.infer<typeof commitUploadSchema>;
