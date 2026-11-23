@@ -503,11 +503,7 @@ function assertMetrics(m: UploadDemoMetrics): void {
       `expected 1, got ${m.keyFromServer}`,
     ],
     ['api-alive', m.apiAlive === 0, `expected 0, got ${m.apiAlive}`],
-    [
-      'put-offline',
-      m.putOffline === 200,
-      `expected 200, got ${m.putOffline}`,
-    ],
+    ['put-offline', m.putOffline === 200, `expected 200, got ${m.putOffline}`],
     ['commit', m.commit === 200, `expected 200, got ${m.commit}`],
     [
       'commit-without-bytes',
