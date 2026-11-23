@@ -38,6 +38,7 @@
     "demo:rbac": "bash scripts/with-secrets.sh dev sh -c 'npm run build --silent && npm run build:demo --silent && node dist-demo/demo/demo-rbac.js'",
     "demo:upload": "bash scripts/with-secrets.sh dev sh -c 'npm run build --silent && npm run build:demo --silent && node dist-demo/demo/demo-upload.js'",
     "demo:multipart": "bash scripts/with-secrets.sh dev sh -c 'npm run build --silent && npm run build:demo --silent && node dist-demo/demo/demo-multipart.js'",
+    "demo:cdn": "bash scripts/with-secrets.sh dev sh -c 'npm run build --silent && npm run build:demo --silent && node dist-demo/demo/demo-cdn.js'",
     "demo:realtime": "node scripts/realtime-demo.mjs",
     "demo:publish": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-publish.js'",
     "demo:dlq": "bash scripts/with-secrets.sh dev sh -c 'npm run build:demo --silent && node dist-demo/demo/demo-dlq.js'",
