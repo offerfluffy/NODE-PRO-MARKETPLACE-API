@@ -1,0 +1,13 @@
+{
+  "name": "marketplace-api-infra",
+  "private": true,
+  "description": "Typed Pulumi Kubernetes infrastructure for marketplace-api (HW #28)",
+  "dependencies": {
+    "@pulumi/kubernetes": "^4.33.0",
+    "@pulumi/pulumi": "^3.144.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "~6.0.3"
+  }
+}

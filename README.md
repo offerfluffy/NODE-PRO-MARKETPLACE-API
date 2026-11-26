@@ -1165,7 +1165,7 @@ npm run demo:rbac
 
 | Змінна               | Призначення                                                     | Джерело                                | Приклад / формат                                         |
 | -------------------- | --------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------- |
-| `STORAGE_ENDPOINT`   | URL S3-сумісного сховища (порожньо => справжній AWS S3)         | конфіг середовища / `## Grading`       | `http://127.0.0.1:21170`                                 |
+| `STORAGE_ENDPOINT`   | URL S3-сумісного API (порожньо => справжній AWS S3)             | конфіг середовища / `## Grading`       | `http://127.0.0.1:21170`                                 |
 | `STORAGE_REGION`     | Регіон для підпису SigV4                                        | конфіг середовища (дефолт `us-east-1`) | `us-east-1`                                              |
 | `STORAGE_BUCKET`     | Приватний бакет для завантажень і версіонованих ассетів         | конфіг середовища / `## Grading`       | `marketplace-files`                                      |
 | `STORAGE_ACCESS_KEY` | Access Key ID для S3 API та локального edge-шару                | сховище Infisical (#11)                | непорожній рядок (у локальному стенді з compose)         |
@@ -1300,6 +1300,62 @@ multipart `ETag` із суфіксом `-N`.
 | `npm run demo:multipart` (прогін 1 і 2) | `head-before-complete=404`, `resumed-parts=1`, `complete=200`, `size-match=1`, `etag-multipart=1`             |
 | `npm run demo:cdn`       | `direct=403`, `edge-miss=200`, `edge-hit=200`, `cache-hit=1`, `new-name=1`, `new-url=200`, `content-changed=1`           |
 
+## Kubernetes
+
+### Локальний кластер і памʼять
+
+Кластер піднято на **`kind` (`v0.33.0`, Kubernetes `v1.37.0`)** однією командою `npm run cluster:up` ([k8s/kind-config.yaml](k8s/kind-config.yaml), [scripts/cluster-up.sh](scripts/cluster-up.sh)).
+
+- **Виділена і фактична памʼять:** Docker Engine має **`7.75 GiB` RAM** (10 CPU); контейнер кластера `marketplace-control-plane` реально спожив **`843.9 MiB`**.
+- **Чому `kind`, а не `minikube`:** `kind` запускає вузол як легкий Docker-контейнер, стартує швидше, споживає менше RAM, не має жорсткої нижньої межі `minikube` у `1800 MB` (`RSRC_INSUFFICIENT_REQ_MEMORY`) і дає свіжішу версію Kubernetes (`v1.37.0`).
+- `scripts/cluster-up.sh` після створення/перевірки вузла обовʼязково виконує `kind load docker-image marketplace-api:local --name marketplace`, бо локально зібраний образ на хості не існує всередині вузла `kind` (без цього под зависає в `ErrImagePull`). `NodePort 30080` прокинуто на `127.0.0.1:28080`.
+
+### Production-образ, BuildKit secret і сканування
+
+- [docker/Dockerfile](docker/Dockerfile) — тристадійний (`build` → `deps` → `runtime` на `gcr.io/distroless/nodejs22-debian12:nonroot`, `USER 65532`, `CMD ["dist/main.js"]`). Вибір `distroless` зумовлений не розміром, а відсутністю `sh`, пакетного менеджера та прав `root` після потенційного RCE.
+- Секрет етапу збірки (`.npm_token`, виключений із `.gitignore` і `.dockerignore`) передається лише через `RUN --mount=type=secret,id=npm_token`, тому відсутній в історії, конфізі та шарах образу (`demo:image` перевіряє всі три канали).
+- [scripts/scan.mjs](scripts/scan.mjs) (`npm run scan`) сканує локальний образ через `aquasec/trivy:0.74.0` (`--severity CRITICAL,HIGH --ignore-unfixed --format json`) і **обчислює** вердикт `gate=pass|fail` із реального числа знахідок проти `SCAN_MAX`. Крок CI із робочим порогом (`SCAN_MAX=20` при поточному baseline `13`) описано в [.github/workflows/image-scan.yml](.github/workflows/image-scan.yml).
+
+### Змінні оточення зі сховища для Kubernetes та Pulumi
+
+Інфраструктура в [infra/](infra/index.ts) описана типізованою Pulumi-програмою (`Namespace`, `Secret`, `Deployment`, `Service`, `PodDisruptionBudget`, `HorizontalPodAutoscaler`) із локальним файловим бекендом (`PULUMI_BACKEND_URL=file://$PWD/.pulumi`). [infra/config.ts](infra/config.ts) першою дією перевіряє всі обовʼязкові змінні зі сховища (також включно зі змінними `JWT_*`, `REFRESH_TOKEN_PEPPER` і `STORAGE_*` із розділів вище) і падає з назвою пропущеної змінної до звернення в кластер.
+
+| Змінна                     | Джерело                 | Навіщо                                                                        |
+| -------------------------- | ----------------------- | ----------------------------------------------------------------------------- |
+| `APP_DB_PASSWORD`          | сховище Infisical (#11) | рантайм-пароль до БД, кладеться в K8s `Secret` і передається через `secretKeyRef` |
+| `PULUMI_CONFIG_PASSPHRASE` | сховище Infisical (#11) | ключ шифрування локального стану Pulumi                                       |
+
+### Zero-downtime rolling update, проби та PDB
+
+Чотири налаштування в [infra/index.ts](infra/index.ts) та [src/main.ts](src/main.ts), що забезпечують нуль невдалих запитів під час оновлення:
+
+1. **Стратегія `maxUnavailable: 0` + `maxSurge: 1`:** кластер піднімає новий под поверх поточних 3 і не знімає старий, доки новий не пройде `readinessProbe`.
+2. **Розділені проби:** `readinessProbe` → `GET /readyz` (`periodSeconds: 1`, `failureThreshold: 1`) керує наявністю IP пода в `EndpointSlice`; `livenessProbe` → `GET /healthz` (`initialDelaySeconds: 15`, `periodSeconds: 10`, `failureThreshold: 3`) перевіряє лише життєздатність процесу і ніколи не бʼє в `/readyz`.
+3. **Прогрів до `listen()` (`WARMUP_MS=4000`):** імітує реальний старт із міграціями й пулом БД, щоб вимір rolling update не був порожнім.
+4. **`terminationGracePeriodSeconds: 20` > `DRAIN_MS=5000` + порядок `SIGTERM`:** на `SIGTERM` процес спершу переводить `/readyz` у `503` (`ready=false`), чекає `5 с` дренажу (доки `kube-proxy` прибере IP пода з ротації, а слухач ще відкритий), потім викликає `app.close()` і виходить із `exit 0`.
+
+Під час прямого звернення в `NodePort` обрив зʼєднання виглядає як відсутність відповіді (`000`), а за Ingress або хмарним балансувальником — як `502`/`503`. Тривалість викочування (`38.66 с`) — ціна нуля: поди оновлюються по одному з прогрівом і дренажем на кожен под.
+
+Для захисту доступності під час планового обслуговування вузлів (`kubectl drain`) створено `PodDisruptionBudget` із **`minAvailable: 2`** при **`replicas: 3`** (`disruptionsAllowed = 1`). Ставити `minAvailable == replicas` не можна: це дає `disruptionsAllowed = 0` і блокує будь-який `drain`. Водночас пряме `kubectl delete pod` обходить PDB — бюджет діє лише на Eviction API.
+
+### Конфлікт володіння полем: `spec.replicas` проти `HPA`
+
+У локальному `kind` не встановлено `metrics-server`, тому `HorizontalPodAutoscaler` (`autoscaling/v2`, `minReplicas: 2`, `maxReplicas: 6`, ціль CPU `70%`) показує `TARGETS cpu: <unknown>/70%` і не змінює кількість реплік — саме тому `spec.replicas: 3` залишено в [infra/index.ts](infra/index.ts). У бойовому кластері з `metrics-server` це створює **конфлікт володіння полем** (Server-Side Apply): і Pulumi, і HPA намагаються писати в `.spec.replicas`, тому `pulumi up` або впаде з apply conflict, або скине масштабування HPA. У production поле `spec.replicas` потрібно делегувати HPA: прибрати `replicas` із Pulumi-коду або додати `ignoreChanges: ["spec.replicas"]`.
+
+### Секрети в кластері: межа BuildKit/K8s, `base64` та ESO/CSI
+
+BuildKit secret і K8s `Secret` закривають різні загрози: BuildKit secret живе лише під час `docker build` і не дає токену збірки потрапити в образ/реєстр; K8s `Secret` живе в рантаймі й прибирає секрети з Git та маніфесту `Deployment` (де лишається лише посилання `secretKeyRef`). Важливо, що `base64` у K8s `Secret` — це кодування, а не шифрування: у локальному `kind` без `encryption-provider-config` значення лежить в `etcd` відкритим текстом і читається одним `base64 -d`. У production значення доставляють із зовнішнього сховища (Infisical, AWS Secrets Manager) через **External Secrets Operator (ESO)** (синхронізує секрети зі сховища в нативні K8s `Secret` за `ExternalSecret`) або **Secrets Store CSI Driver** (монтує секрети напряму в под як in-memory файли без запису в `etcd`), у поєднанні з Encryption at Rest і RBAC.
+
+### Виміряні результати демо (ДЗ #28)
+
+| Команда                                 | Виміряний результат                                                                                  |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `npm run demo:image`                    | `stages=3`, `shell-inside=0`, `runtime-uid=65532`, `token-in-history=0`, `token-in-config=0`, `token-in-layers=0` |
+| `SCAN_MAX=-1 npm run scan`              | `image=marketplace-api:local`, `severity=CRITICAL,HIGH`, `found=13`, `max-allowed=-1`, `gate=fail` (`exit 1`) |
+| `SCAN_MAX=99999 npm run scan`           | `image=marketplace-api:local`, `severity=CRITICAL,HIGH`, `found=13`, `max-allowed=99999`, `gate=pass` (`exit 0`) |
+| `npm run demo:rollout`                  | `profile=hardened`, `requests=49483`, `ok=49483`, `failed=0`, `rollout-seconds=38.66`               |
+| `npm run demo:pdb`                      | `disruptionsAllowed=1` до демо; `healthy=3`, `minAvailable=2`, `evict-1=201`, `evict-2=429`          |
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
@@ -1389,3 +1445,39 @@ bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
 
 After the setup commands finish, start `npm run start` in one terminal and run
 the commands from [Realtime verification](#12-realtime-verification) in another.
+
+### Kubernetes & Docker Advanced (HW #28)
+
+For HW #28, no Docker Compose services or cloud account are required. Export the
+vault secrets with `SKIP_VAULT=1` and use the local file backend for Pulumi:
+
+```bash
+export SKIP_VAULT=1
+export APP_DB_PASSWORD=grader-secret
+export JWT_PRIVATE_KEY=grader-jwt-priv
+export JWT_PUBLIC_KEY=grader-jwt-pub
+export JWT_KID=grader-kid
+export REFRESH_TOKEN_PEPPER=grader-pepper
+export STORAGE_ACCESS_KEY=hw26user
+export STORAGE_SECRET_KEY=hw26secretpass
+export PULUMI_BACKEND_URL="file://$PWD/.pulumi"
+export PULUMI_CONFIG_PASSPHRASE=hw28-grading
+
+npm --prefix infra ci
+cd infra && npx tsc --noEmit && cd ..
+
+printf 'dummy-npm-token' > .npm_token
+npm run image:build
+npm run demo:image
+
+SCAN_MAX=-1 npm run scan || true
+SCAN_MAX=99999 npm run scan
+
+npm run cluster:up
+npm run up
+npm run demo:rollout
+npm run demo:pdb
+
+# Teardown after grading:
+npm run destroy && npm run cluster:down
+```

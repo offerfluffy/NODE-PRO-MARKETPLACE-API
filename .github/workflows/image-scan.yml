@@ -1,0 +1,45 @@
+name: Image build and security scan
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  image-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Prepare ephemeral BuildKit secret file
+        env:
+          BUILD_NPM_TOKEN: ${{ secrets.NPM_TOKEN || 'ci-dummy-npm-token' }}
+        run: printf '%s' "$BUILD_NPM_TOKEN" > .npm_token
+
+      - name: Build production image
+        run: npm run image:build
+
+      - name: Verify production image and BuildKit secret hygiene
+        run: npm run demo:image
+
+      - name: Scan production image with computed threshold
+        env:
+          # Baseline measured on gcr.io/distroless/nodejs22-debian12:nonroot (13 fixable CRITICAL+HIGH).
+          # Review and tighten after base image / dependency updates (next review: 2026-12-31).
+          SCAN_MAX: '20'
+        run: npm run scan
+
+      - name: Clean up ephemeral secret file
+        if: always()
+        run: rm -f .npm_token

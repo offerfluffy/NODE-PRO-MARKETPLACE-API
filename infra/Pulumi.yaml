@@ -1,0 +1,6 @@
+name: marketplace-api-k8s
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Local Kubernetes infrastructure for marketplace-api (HW #28)

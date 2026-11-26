@@ -49,7 +49,16 @@
     "report": "npm run build:demo --silent && bash scripts/with-secrets.sh dev node dist-demo/demo/report.js",
     "verify:provider": "NODE_ENV=test NODE_OPTIONS=--experimental-vm-modules jest test/contract/provider.pact.spec.ts",
     "rabbitmq:bootstrap": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/modules/messaging/rabbitmq/bootstrap.js",
-    "outbox:relay": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/modules/messaging/outbox/relay.worker.js"
+    "outbox:relay": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/modules/messaging/outbox/relay.worker.js",
+    "image:build": "docker build --secret id=npm_token,src=.npm_token -f docker/Dockerfile -t marketplace-api:local .",
+    "cluster:up": "bash scripts/cluster-up.sh",
+    "cluster:down": "bash scripts/cluster-down.sh",
+    "scan": "node scripts/scan.mjs",
+    "up": "bash scripts/with-secrets.sh dev bash scripts/pulumi-up.sh",
+    "destroy": "bash scripts/with-secrets.sh dev bash scripts/pulumi-destroy.sh",
+    "demo:image": "node demo/demo-image.mjs",
+    "demo:rollout": "node demo/demo-rollout.mjs",
+    "demo:pdb": "node demo/demo-pdb.mjs"
   },
   "keywords": [],
   "author": "",

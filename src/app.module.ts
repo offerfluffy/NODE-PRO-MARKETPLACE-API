@@ -9,6 +9,7 @@ import { ProductsModule } from './modules/products/products.module.js';
 import { SessionsModule } from './modules/sessions/sessions.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { UploadsModule } from './modules/uploads/uploads.module.js';
+import { ProbesModule } from './modules/probes/probes.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { UploadsModule } from './modules/uploads/uploads.module.js';
       ignoreEnvFile: process.env.NODE_ENV === 'test',
       validate,
     }),
+    ProbesModule,
     RedisModule,
     DatabaseModule,
     AuthModule,
