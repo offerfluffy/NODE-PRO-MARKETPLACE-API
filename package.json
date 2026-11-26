@@ -54,6 +54,8 @@
     "cluster:up": "bash scripts/cluster-up.sh",
     "cluster:down": "bash scripts/cluster-down.sh",
     "scan": "node scripts/scan.mjs",
+    "up": "bash scripts/with-secrets.sh dev bash scripts/pulumi-up.sh",
+    "destroy": "bash scripts/with-secrets.sh dev bash scripts/pulumi-destroy.sh",
     "demo:image": "node demo/demo-image.mjs"
   },
   "keywords": [],

@@ -6,3 +6,4 @@ config:
   marketplace-api-k8s:warmupMs: "4000"
   marketplace-api-k8s:drainMs: "5000"
   marketplace-api-k8s:nodePort: "30080"
+encryptionsalt: v1:LZ/nJoSWvB0=:v1:xrUUTr1pg/AFbsBY:r4duO6EnkMqyjrSGB4GXJ0NjvKDsQg==

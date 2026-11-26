@@ -1,6 +1,6 @@
 import * as k8s from '@pulumi/kubernetes';
 import * as pulumi from '@pulumi/pulumi';
-import { loadRuntimeSecrets } from './config.js';
+import { loadRuntimeSecrets } from './config';
 
 // Fail fast before any cluster call if a required vault secret is missing (Criterion #5).
 const secrets = loadRuntimeSecrets();
