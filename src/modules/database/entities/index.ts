@@ -1,3 +1,4 @@
+import { FileRecord } from './file.entity.js';
 import { Inventory } from './inventory.entity.js';
 import { Job } from './job.entity.js';
 import { Order } from './order.entity.js';
@@ -20,4 +21,5 @@ export const databaseEntities = [
   OutboxEvent,
   ProcessedMessage,
   RefreshToken,
+  FileRecord,
 ];

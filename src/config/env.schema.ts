@@ -17,6 +17,15 @@ export const envSchema = z
     TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
     REDIS_URL: z.url({ protocol: /^rediss?$/ }),
     REDIS_QUEUE_URL: z.url({ protocol: /^rediss?$/ }),
+    STORAGE_ENDPOINT: z.preprocess(
+      (value) =>
+        typeof value === 'string' && value.trim() === '' ? undefined : value,
+      z.url({ protocol: /^https?$/ }).optional(),
+    ),
+    STORAGE_REGION: z.string().trim().min(1).default('us-east-1'),
+    STORAGE_BUCKET: z.string().trim().min(1),
+    STORAGE_ACCESS_KEY: z.string().trim().min(1),
+    STORAGE_SECRET_KEY: z.string().trim().min(1),
   })
   .superRefine((env, context) => {
     const passwordInUrl = new URL(env.DB_URL).password;

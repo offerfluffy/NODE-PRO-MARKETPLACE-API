@@ -130,6 +130,25 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+  rustfs:
+    image: rustfs/rustfs:1.0.5
+    ports:
+      - '21170:9000'
+      - '21171:9001'
+    environment:
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: 'true'
+      RUSTFS_ACCESS_KEY: hw26user
+      RUSTFS_SECRET_KEY: hw26secretpass
+    tmpfs:
+      - /data:size=1g,mode=1777
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -sf http://127.0.0.1:9000/health || exit 1']
+      interval: 2s
+      timeout: 3s
+      retries: 30
 volumes:
   restore_data:
   redis_queue_data:

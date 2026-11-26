@@ -4,6 +4,7 @@ import { AddOrderStatusEvents1793470000000 } from './1793470000000-AddOrderStatu
 import { AddJobEventId1793641582317 } from './1793641582317-AddJobEventId.js';
 import { AddTransactionalOutbox1794301681079 } from './1794301681079-AddTransactionalOutbox.js';
 import { AddRefreshTokens1794772669881 } from './1794772669881-AddRefreshTokens.js';
+import { AddFilesTable1795378352786 } from './1795378352786-AddFilesTable.js';
 
 export const databaseMigrations = [
   InitialSchema1791739678815,
@@ -12,4 +13,5 @@ export const databaseMigrations = [
   AddJobEventId1793641582317,
   AddTransactionalOutbox1794301681079,
   AddRefreshTokens1794772669881,
+  AddFilesTable1795378352786,
 ];

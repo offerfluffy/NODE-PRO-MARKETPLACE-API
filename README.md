@@ -1145,12 +1145,168 @@ npm run demo:reuse
 npm run demo:rbac
 ```
 
+## Files
+
+### Архітектура та змінні оточення
+
+Завантаження файлів розділене на control plane і data plane:
+
+- **Control plane** (`POST /uploads/intent`, `GET /uploads/:fileId/parts`,
+  `POST /uploads/commit`) захищений `AccessTokenGuard`, валідує `contentType` за
+  allowlist у `src/modules/uploads/upload-policy.ts`, сам генерує ключ
+  `uploads/{userId}/{uuid}.{ext}` (ігноруючи клієнтський `filename`), веде
+  метадані в PostgreSQL-таблиці `files` (`PENDING` → `COMPLETED`) і перевіряє
+  реальну наявність та розмір обʼєкта через `HeadObject` перед комітом.
+- **Data plane**: байти файлу йдуть напряму від клієнта в S3-сумісне сховище за
+  SigV4 presigned URL (і доїжджають навіть тоді, коли наш API вимкнено).
+- Клієнт `S3Client` налаштовано з `requestChecksumCalculation: 'WHEN_REQUIRED'`
+  та `forcePathStyle: Boolean(STORAGE_ENDPOINT)`: порожній `STORAGE_ENDPOINT`
+  перемикає клієнт на справжній AWS S3 без змін у коді.
+
+| Змінна               | Призначення                                                     | Джерело                                | Приклад / формат                                         |
+| -------------------- | --------------------------------------------------------------- | -------------------------------------- | -------------------------------------------------------- |
+| `STORAGE_ENDPOINT`   | URL S3-сумісного сховища (порожньо => справжній AWS S3)         | конфіг середовища / `## Grading`       | `http://127.0.0.1:21170`                                 |
+| `STORAGE_REGION`     | Регіон для підпису SigV4                                        | конфіг середовища (дефолт `us-east-1`) | `us-east-1`                                              |
+| `STORAGE_BUCKET`     | Приватний бакет для завантажень і версіонованих ассетів         | конфіг середовища / `## Grading`       | `marketplace-files`                                      |
+| `STORAGE_ACCESS_KEY` | Access Key ID для S3 API та локального edge-шару                | сховище Infisical (#11)                | непорожній рядок (у локальному стенді з compose)         |
+| `STORAGE_SECRET_KEY` | Secret Access Key для підпису SigV4 і запитів у сховище         | сховище Infisical (#11)                | непорожній секрет (не зберігається у трекнутих файлах)   |
+
+Витік `STORAGE_ACCESS_KEY` / `STORAGE_SECRET_KEY` дає зловмиснику право читати й
+перезаписувати всі обʼєкти бакета, а витік приватного ключа підпису CDN — право
+випускати доступ до всього приватного контенту дистрибуції. Тому всі три
+демо-скрипти (`demo:upload`, `demo:multipart`, `demo:cdn`) запускаються через
+`bash scripts/with-secrets.sh dev ...`.
+
+Локальний стенд використовує `rustfs/rustfs:1.0.5` у `docker-compose.yml` із
+`tmpfs: /data:size=1g,mode=1777`. `minio/minio` видалено з Docker Hub у вересні
+2026 року, а LocalStack Community без Pro-ліцензії (`ENFORCE_IAM`) повертає
+`200` на анонімний `GET` у приватний бакет; RustFS відтворює строгий SigV4
+(`403` на анонімний `GET`, підмінений ключ і протермінований presigned URL) та
+multipart `ETag` із суфіксом `-N`.
+
+### Строк дії presigned URL (`expiresIn = 300s`)
+
+Для `POST /uploads/intent` обрано **300 секунд (5 хвилин)** — достатньо для
+завантаження аватарки чи фото товару з форми, але коротке вікно ризику у разі
+витоку URL.
+
+- **Presigned URL не можна відкликати**: на відміну від access JWT із ДЗ #24, у
+  нього немає ані `jti`, ані denylist, тому короткий TTL — єдиний механізм
+  обмеження доступу, якщо URL потрапить до рук зловмисника.
+- **Чому не 7 днів (максимум SigV4)**: у production застосунок працює під
+  IAM-роллю, тимчасові STS-креденшели якої живуть обмежений час (типово 1–6
+  годин). Presigned URL перестає працювати щойно спливають креденшели, якими
+  його підписано, тому `expiresIn: 7d` проходить локально на статичних ключах,
+  але ламається в production вже за годину.
+- Для довгоживучих посилань (наприклад, у листах) замість довгого presigned URL
+  використовується ендпоінт на кшталт `GET /files/:id`, який щоразу перевіряє
+  права доступу і відповідає `302` на свіжий короткий presigned URL.
+
+### Multipart: поріг, розрахунок `partSize` і відновлення
+
+- **Поріг перемикання**: `MULTIPART_THRESHOLD_BYTES = 10 MiB`
+  (`10 * 1024 * 1024`). Файли `<= 10 MiB` ідуть одним `PUT`, файли `> 10 MiB` —
+  через multipart (`CreateMultipartUpload` → presigned `UploadPart` →
+  `CompleteMultipartUpload`).
+- **Формула розміру частини**:
+  `partSize = Math.max(5 MiB, Math.ceil(fileSize / 10_000))`.
+  Мінімум `5 MiB` вимагає контракт S3 для всіх частин, крім останньої (інакше
+  `CompleteMultipartUpload` віддає `EntityTooSmall`), а верхня межа S3 —
+  `10 000` частин на обʼєкт. Жорсткі `5 MiB` зламалися б на файлі понад ~50 GiB;
+  формула підбирає мінімально ефективний розмір у межах обох обмежень аж до
+  5 TiB.
+- **Відновлення після обриву**: новий процес викликає `GET /uploads/:fileId/parts`
+  (під капотом `ListParts` із пагінацією за `PartNumberMarker`), бачить уже
+  завантажені частини і доливає лише відсутні (`resumed-parts=1` із 3).
+- **`ETag` multipart-обʼєкта — не MD5 файла**: після `CompleteMultipartUpload`
+  сховище обчислює MD5 від конкатенації бінарних MD5 частин і додає суфікс
+  `-N` (кількість частин, наприклад `"...-3"`), тому пряме порівняння `ETag` із
+  локальним MD5 файла на multipart мовчки ламається.
+
+### Форма CDN, OAC і оновлення без інвалідації
+
+Обрана **локальна форма CDN** — власний edge-сервер
+`src/modules/cdn/edge-cache-server.ts` перед приватним бакетом RustFS:
+
+- Бакет закритий для анонімних запитів (`direct=403`).
+- Лише edge-сервер має креденшели `S3Client` і читає обʼєкти через `GetObject`
+  (локальний еквівалент OAC), обмежуючи публічний доступ префіксом `assets/`,
+  щоб приватні `uploads/` не могли витекти назовні.
+- Заголовок `Cache-Control: public, max-age=31536000, immutable` виставляється
+  **на обʼєкті в origin** під час публікації (`src/modules/cdn/asset-publisher.ts`),
+  а не в edge. Edge кешує відповідь лише за наявності кешованого `Cache-Control`
+  від origin і повертає `X-Cache: MISS` / `X-Cache: HIT`.
+- **Оновлення без інвалідації**: імʼя публічного ассета містить 8-символьний
+  SHA-256 хеш вмісту (`assets/app.<hash>.css`). Інвалідація CDN не може
+  почистити кеш у браузері користувача, тому при деплої новий вміст отримує
+  новий URL, а HTML (із `no-cache`) посилається на свіжий хеш. Старий запис у
+  кеші нікому не заважає, інвалідацій — нуль.
+
+Для production на AWS використовується **CloudFront + Origin Access Control
+(OAC)** із приватним S3-бакетом та такою bucket policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AllowCloudFrontServicePrincipalReadOnly",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "cloudfront.amazonaws.com"
+      },
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::marketplace-files/assets/*",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudfront::<ACCOUNT_ID>:distribution/<DISTRIBUTION_ID>"
+        }
+      }
+    }
+  ]
+}
+```
+
+Умова `Condition` з `AWS:SourceArn` є **обовʼязковою**: без неї дозвіл для
+`Principal: { "Service": "cloudfront.amazonaws.com" }` відкриває доступ до
+бакета будь-якій чужій CloudFront-дистрибуції у світі (confused deputy), а не
+лише нашому CDN.
+
+### Гігієна в production (заплановано, не входить у поточну реалізацію)
+
+- **Прибирання сиріт (`PENDING`)**: у таблиці `files` уже створено індекс
+  `idx_files_status_created_at`. У production періодична BullMQ-джоба (черга з
+  ДЗ #23) має знаходити `PENDING`-рядки старші за 24 години й виконувати
+  `AbortMultipartUpload` → `DeleteObject` → видалення рядка.
+- **S3 Lifecycle для незавершених multipart**: окреме правило
+  `AbortIncompleteMultipartUpload: 7 days`, оскільки незавершені частини
+  тарифікуються і не видаляються звичайним правилом expiration обʼєктів.
+- **Приватний контент через CDN**: для приватних медіа поверх CloudFront
+  додаються Signed URLs / Signed Cookies (окремий ключ підпису зі сховища
+  секретів).
+- **Бекапи з ДЗ #15**: у production дампи PostgreSQL відправляються в обʼєктне
+  сховище з lifecycle-переходом у холодні класи зберігання; при цьому Glacier
+  збільшує RTO (обʼєкт потрібно спершу відновити), а сам lifecycle не замінює
+  регулярний `restore-drill`.
+
+### Виміряні результати демо
+
+Усі три демо запускаються через `scripts/with-secrets.sh`, самі очищують свій
+стан до і після прогону та перевіряють інваріанти:
+
+| Демо                 | Виміряний вивід                                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `npm run demo:upload`    | `intent=200`, `key-from-server=1`, `api-alive=0`, `put-offline=200`, `commit=200`, `commit-without-bytes=409`, `tampered=403`, `expired=403` |
+| `npm run demo:multipart` (прогін 1 і 2) | `head-before-complete=404`, `resumed-parts=1`, `complete=200`, `size-match=1`, `etag-multipart=1`             |
+| `npm run demo:cdn`       | `direct=403`, `edge-miss=200`, `edge-hit=200`, `cache-hit=1`, `new-name=1`, `new-url=200`, `content-changed=1`           |
+
 ## Grading
 
 The grader has no access to Infisical. `SKIP_VAULT=1` tells the same wrapper to
 use the variables exported from the local Docker Compose development
 credentials instead. `DB_URL` is used by the API, `DATABASE_URL` is used by
-the backup scripts, and the `DB_*` variables are used by TypeORM commands:
+the backup scripts, `DB_*` variables are used by TypeORM commands, and
+`STORAGE_*` variables point to the local S3-compatible RustFS container:
 
 ```bash
 docker compose up -d --wait
@@ -1165,6 +1321,11 @@ export PORT=3000
 export BROKER_URL=amqp://app:app@127.0.0.1:21140
 export REDIS_URL=redis://127.0.0.1:21150
 export REDIS_QUEUE_URL=redis://127.0.0.1:21160
+export STORAGE_ENDPOINT=http://127.0.0.1:21170
+export STORAGE_REGION=us-east-1
+export STORAGE_BUCKET=marketplace-files
+export STORAGE_ACCESS_KEY=hw26user
+export STORAGE_SECRET_KEY=hw26secretpass
 
 # One-time ES256 pair for the grader. PEM values are transported as base64.
 node -e '
@@ -1217,6 +1378,10 @@ npm run demo:queue
 npm run demo:auth
 npm run demo:reuse
 npm run demo:rbac
+npm run demo:upload
+npm run demo:multipart
+npm run demo:multipart
+npm run demo:cdn
 
 bash scripts/with-secrets.sh dev bash scripts/backup.sh
 bash scripts/with-secrets.sh dev bash scripts/restore-drill.sh
