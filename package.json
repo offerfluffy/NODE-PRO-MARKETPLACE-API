@@ -51,6 +51,8 @@
     "rabbitmq:bootstrap": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/modules/messaging/rabbitmq/bootstrap.js",
     "outbox:relay": "npm run build --silent && bash scripts/with-secrets.sh dev node dist/modules/messaging/outbox/relay.worker.js",
     "image:build": "docker build --secret id=npm_token,src=.npm_token -f docker/Dockerfile -t marketplace-api:local .",
+    "cluster:up": "bash scripts/cluster-up.sh",
+    "cluster:down": "bash scripts/cluster-down.sh",
     "scan": "node scripts/scan.mjs",
     "demo:image": "node demo/demo-image.mjs"
   },
