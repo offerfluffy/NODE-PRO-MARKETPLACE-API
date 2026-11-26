@@ -7,3 +7,5 @@ dist-demo
 tsconfig.build.tsbuildinfo
 backups/
 .npm_token
+.pulumi/
+infra/node_modules/

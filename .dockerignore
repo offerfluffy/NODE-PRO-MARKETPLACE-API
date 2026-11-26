@@ -6,3 +6,5 @@ dist
 !.env.example
 secrets/
 .npm_token
+.pulumi/
+infra/node_modules/
