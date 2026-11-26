@@ -57,7 +57,8 @@
     "up": "bash scripts/with-secrets.sh dev bash scripts/pulumi-up.sh",
     "destroy": "bash scripts/with-secrets.sh dev bash scripts/pulumi-destroy.sh",
     "demo:image": "node demo/demo-image.mjs",
-    "demo:rollout": "node demo/demo-rollout.mjs"
+    "demo:rollout": "node demo/demo-rollout.mjs",
+    "demo:pdb": "node demo/demo-pdb.mjs"
   },
   "keywords": [],
   "author": "",
